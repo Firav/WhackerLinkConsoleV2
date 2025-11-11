@@ -1,0 +1,71 @@
+<Window x:Class="WhackerLinkConsoleV2.KeybindingConfigWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="PTT Keybinding Configuration" Height="600" Width="800"
+        WindowStartupLocation="CenterScreen">
+    <Grid Margin="10">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Global PTT Section -->
+        <TextBlock Text="Global PTT Keybind" FontWeight="Bold" Margin="0,0,0,5" Grid.Row="0"/>
+        <Grid Grid.Row="1" Margin="0,5,0,15">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            
+            <TextBox x:Name="GlobalPttKeybindDisplay" 
+                     Text="Ctrl+T" 
+                     IsReadOnly="True" 
+                     VerticalContentAlignment="Center"
+                     Padding="5"
+                     Grid.Column="0"
+                     Margin="0,0,10,0"/>
+            
+            <Button x:Name="RecordGlobalPttButton" 
+                    Click="RecordGlobalPtt_Click" 
+                    Content="Record" 
+                    Width="80" 
+                    Margin="0,0,10,0"
+                    Grid.Column="1"/>
+            
+            <Button x:Name="ClearGlobalPttButton" 
+                    Click="ClearGlobalPtt_Click" 
+                    Content="Clear" 
+                    Width="80"
+                    Grid.Column="2"/>
+        </Grid>
+
+        <!-- Per-Channel Section -->
+        <TextBlock Text="Per-Channel PTT Keybindings" FontWeight="Bold" Grid.Row="2" Margin="0,0,0,5"/>
+        <ScrollViewer Grid.Row="2" Margin="0,25,0,0">
+            <StackPanel>
+                <TextBlock x:Name="CodeplugIdentifierText" 
+                           Text="No codeplug loaded" 
+                           FontSize="10" 
+                           Foreground="Gray" 
+                           Margin="0,0,0,10"/>
+                <StackPanel x:Name="ChannelKeybindingsPanel"/>
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- Footer Buttons -->
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Grid.Row="3" Margin="0,20,0,0">
+            <Button x:Name="ApplyButton" 
+                    Click="Apply_Click" 
+                    Content="Apply" 
+                    Width="100" 
+                    Margin="0,0,10,0"/>
+            <Button x:Name="CloseButton" 
+                    Click="Close_Click" 
+                    Content="Close" 
+                    Width="100"/>
+        </StackPanel>
+    </Grid>
+</Window>
