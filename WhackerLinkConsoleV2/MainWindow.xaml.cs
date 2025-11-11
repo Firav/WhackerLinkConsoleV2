@@ -70,6 +70,11 @@ namespace WhackerLinkConsoleV2
         private FlashingBackgroundManager _flashingManager;
         private WaveFilePlaybackManager _emergencyAlertPlayback;
         private WebSocketManager _webSocketManager = new WebSocketManager();
+        private ChannelKeybindingManager _channelKeybindingManager = new ChannelKeybindingManager();
+        private GlobalHotKeyManager _globalHotKeyManager;
+        private ChannelHotKeyManager _channelHotKeyManager;
+        private int _globalPttHotKeyId = -1;
+        private string _currentCodeplugIdentifier;
 
         private ChannelBox playbackChannelBox;
 
@@ -457,6 +462,9 @@ namespace WhackerLinkConsoleV2
             //    offsetY += 106;
             //}
 
+            // Initialize channel hotkeys after channels are created
+            InitializeChannelHotkeys();
+
             AdjustCanvasHeight();
         }
 
@@ -616,6 +624,241 @@ namespace WhackerLinkConsoleV2
 
             AudioSettingsWindow audioSettingsWindow = new AudioSettingsWindow(_settingsManager, _audioManager, channels);
             audioSettingsWindow.ShowDialog();
+        }
+
+        private void ConfigurePttKeybindings_Click(object sender, RoutedEventArgs e)
+        {
+            if (Codeplug == null)
+            {
+                MessageBox.Show("Please load a codeplug first before configuring PTT keybindings.", "No Codeplug Loaded", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            var configWindow = new KeybindingConfigWindow(
+                _settingsManager,
+                _channelKeybindingManager,
+                Codeplug,
+                _settingsManager.LastCodeplugPath
+            );
+
+            configWindow.Owner = this;
+            configWindow.ShowDialog();
+
+            // Reinitialize hotkeys after configuration changes
+            InitializeGlobalHotkeys();
+            if (Codeplug != null)
+            {
+                InitializeChannelHotkeys();
+            }
+        }
+
+        private void InitializeGlobalHotkeys()
+        {
+            try
+            {
+                // Initialize the hotkey manager if not already done
+                if (_globalHotKeyManager == null)
+                {
+                    _globalHotKeyManager = new GlobalHotKeyManager();
+                    _globalHotKeyManager.Initialize(this);
+                }
+
+                // Unregister old hotkey
+                if (_globalPttHotKeyId != -1)
+                    _globalHotKeyManager.UnregisterHotKey(_globalPttHotKeyId);
+
+                // Register Global PTT hotkey
+                if (_settingsManager.EnableGlobalPttHotkey && !string.IsNullOrWhiteSpace(_settingsManager.GlobalPttKeybind))
+                {
+                    if (KeybindingParser.TryParseKeybinding(_settingsManager.GlobalPttKeybind, out var globalModifiers, out var globalKey))
+                    {
+                        _globalPttHotKeyId = _globalHotKeyManager.RegisterHotKey(
+                            globalModifiers,
+                            globalKey,
+                            OnGlobalPttHotKeyDown,
+                            OnGlobalPttHotKeyUp
+                        );
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"ERROR: Failed to initialize global hotkeys: {ex.Message}");
+            }
+        }
+
+        private void InitializeChannelHotkeys()
+        {
+            try
+            {
+                _currentCodeplugIdentifier = ChannelKeybindingManager.GenerateCodeplugIdentifier(_settingsManager.LastCodeplugPath);
+
+                // Make sure global hotkey manager is initialized first
+                if (_globalHotKeyManager == null)
+                {
+                    InitializeGlobalHotkeys();
+                }
+
+                if (_channelHotKeyManager == null)
+                {
+                    _channelHotKeyManager = new ChannelHotKeyManager(
+                        _globalHotKeyManager,
+                        _channelKeybindingManager,
+                        OnChannelHotKeyTriggered
+                    );
+                }
+
+                var allChannels = ChannelsCanvas.Children.OfType<ChannelBox>().ToList();
+                _channelHotKeyManager.InitializeChannelHotkeys(_currentCodeplugIdentifier, allChannels);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"ERROR: Failed to initialize channel hotkeys: {ex.Message}");
+            }
+        }
+
+        private void OnGlobalPttHotKeyDown()
+        {
+            Dispatcher.Invoke(() =>
+            {
+                if (!globalPttState)
+                {
+                    globalPttState = true;
+                    ActivateGlobalPtt();
+                }
+            });
+        }
+
+        private void OnGlobalPttHotKeyUp()
+        {
+            Dispatcher.Invoke(() =>
+            {
+                if (globalPttState)
+                {
+                    globalPttState = false;
+                    ReleaseGlobalPtt();
+                }
+            });
+        }
+
+        private void OnChannelHotKeyTriggered(ChannelBox channel, bool isPressed)
+        {
+            Dispatcher.Invoke(() =>
+            {
+                if (channel != null)
+                {
+                    if (isPressed && !channel.PttState)
+                    {
+                        channel.PttState = true;
+                        ChannelBox_PTTButtonClicked(channel, channel);
+                    }
+                    else if (!isPressed && channel.PttState)
+                    {
+                        channel.PttState = false;
+                        ChannelBox_PTTButtonClicked(channel, channel);
+                    }
+                }
+            });
+        }
+
+        private async void ActivateGlobalPtt()
+        {
+            foreach (ChannelBox channel in _selectedChannelsManager.GetSelectedChannels())
+            {
+                if (channel.SystemName == PLAYBACKSYS || channel.ChannelName == PLAYBACKCHNAME || channel.DstId == PLAYBACKTG)
+                    continue;
+
+                Codeplug.System system = Codeplug.GetSystemForChannel(channel.ChannelName);
+                Codeplug.Channel cpgChannel = Codeplug.GetChannelByName(channel.ChannelName);
+
+                if (!system.IsDvm)
+                {
+                    IPeer handler = _webSocketManager.GetWebSocketHandler(system.Name);
+
+                    if (!channel.IsSelected)
+                        continue;
+
+                    Dispatcher.Invoke(() =>
+                    {
+                        btnGlobalPtt.Background = channel.redGradient;
+                    });
+
+                    GRP_VCH_REQ request = new GRP_VCH_REQ
+                    {
+                        SrcId = system.Rid,
+                        DstId = cpgChannel.Tgid,
+                        Site = system.Site
+                    };
+
+                    channel.PttState = true;
+
+                    handler.SendMessage(request.GetData());
+                }
+                else
+                {
+                    PeerSystem handler = _fneSystemManager.GetFneSystem(system.Name);
+
+                    channel.txStreamId = handler.NewStreamId();
+
+                    Dispatcher.Invoke(() =>
+                    {
+                        btnGlobalPtt.Background = channel.redGradient;
+                        channel.PttState = true;
+                    });
+
+                    handler.SendP25TDU(UInt32.Parse(system.Rid), UInt32.Parse(cpgChannel.Tgid), true);
+                }
+            }
+        }
+
+        private async void ReleaseGlobalPtt()
+        {
+            await Task.Delay(500);
+
+            foreach (ChannelBox channel in _selectedChannelsManager.GetSelectedChannels())
+            {
+                if (channel.SystemName == PLAYBACKSYS || channel.ChannelName == PLAYBACKCHNAME || channel.DstId == PLAYBACKTG)
+                    continue;
+
+                Codeplug.System system = Codeplug.GetSystemForChannel(channel.ChannelName);
+                Codeplug.Channel cpgChannel = Codeplug.GetChannelByName(channel.ChannelName);
+
+                if (!system.IsDvm)
+                {
+                    IPeer handler = _webSocketManager.GetWebSocketHandler(system.Name);
+
+                    if (!channel.IsSelected)
+                        continue;
+
+                    Dispatcher.Invoke(() =>
+                    {
+                        btnGlobalPtt.Background = channel.grayGradient;
+                    });
+
+                    GRP_VCH_RLS release = new GRP_VCH_RLS
+                    {
+                        SrcId = system.Rid,
+                        DstId = cpgChannel.Tgid,
+                        Site = system.Site
+                    };
+
+                    channel.PttState = false;
+
+                    handler.SendMessage(release.GetData());
+                }
+                else
+                {
+                    PeerSystem handler = _fneSystemManager.GetFneSystem(system.Name);
+
+                    Dispatcher.Invoke(() =>
+                    {
+                        btnGlobalPtt.Background = channel.grayGradient;
+                        channel.PttState = false;
+                    });
+
+                    handler.SendP25TDU(UInt32.Parse(system.Rid), UInt32.Parse(cpgChannel.Tgid), false);
+                }
+            }
         }
 
         private void P25Page_Click(object sender, RoutedEventArgs e)
