@@ -16,6 +16,7 @@
 * 
 * Copyright (C) 2024-2025 Caleb, K4PHP
 * Copyright (C) 2025 J. Dean
+* Copyright (C) 2025 Firav (firavdev@gmail.com)
 * 
 */
 
@@ -87,7 +88,7 @@ namespace WhackerLinkConsoleV2
         private readonly WaveInEvent _waveIn;
         private readonly AudioManager _audioManager;
 
-        private static System.Timers.Timer _channelHoldTimer;
+        private System.Timers.Timer _channelHoldTimer;
 
         private Dictionary<string, SlotStatus> systemStatuses = new Dictionary<string, SlotStatus>();
         private FneSystemManager _fneSystemManager = new FneSystemManager();
@@ -117,6 +118,7 @@ namespace WhackerLinkConsoleV2
 
             InitializeComponent();
             _settingsManager.LoadSettings();
+            _channelKeybindingManager.LoadKeybindings();
             _selectedChannelsManager = new SelectedChannelsManager();
             _flashingManager = new FlashingBackgroundManager(null, ChannelsCanvas, null, this);
             _emergencyAlertPlayback = new WaveFilePlaybackManager(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "emergency.wav"));
@@ -139,6 +141,7 @@ namespace WhackerLinkConsoleV2
 
             _selectedChannelsManager.SelectedChannelsChanged += SelectedChannelsChanged;
             Loaded += MainWindow_Loaded;
+            Loaded += (s, e) => InitializeGlobalHotkeys();
         }
 
         private void OpenCodeplug_Click(object sender, RoutedEventArgs e)
@@ -1773,7 +1776,6 @@ namespace WhackerLinkConsoleV2
         {
             _settingsManager.SaveSettings();
             base.OnClosing(e);
-            Application.Current.Shutdown();
         }
 
         private void ClearEmergency_Click(object sender, RoutedEventArgs e)
@@ -2568,6 +2570,99 @@ namespace WhackerLinkConsoleV2
         private void CallHist_Click(object sender, RoutedEventArgs e)
         {
             callHistoryWindow.Show();
+        }
+
+        private void MainWindow_OnClosed(object sender, EventArgs e)
+        {
+            Console.WriteLine("=== Application Shutdown Started ===");
+
+            // Stop and dispose timers FIRST to prevent any new operations
+            try
+            {
+                Console.WriteLine("Stopping timers...");
+                _channelHoldTimer?.Stop();
+                _channelHoldTimer?.Dispose();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error disposing timer: {ex.Message}");
+            }
+
+            // Cleanup hotkeys early
+            try
+            {
+                _globalHotKeyManager?.UnregisterAllHotKeys();
+                _channelHotKeyManager?.UnregisterAllChannelHotkeys();
+                _globalHotKeyManager?.Dispose();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error disposing hotkeys: {ex.Message}");
+            }
+
+            // Disconnect all WebSocket connections
+            try
+            {
+                Console.WriteLine("Disconnecting WebSocket connections...");
+                _webSocketManager?.ClearAllWebSocketHandlers();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error disconnecting websockets: {ex.Message}");
+            }
+
+            // Stop all FNE systems
+            try
+            {
+                Console.WriteLine("Stopping FNE systems...");
+                _fneSystemManager?.ClearAll();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error stopping FNE systems: {ex.Message}");
+            }
+
+            // Give connections a moment to close gracefully
+            Console.WriteLine("Waiting for connections to close...");
+            System.Threading.Thread.Sleep(1000);
+
+            // Stop and dispose audio recording
+            try
+            {
+                Console.WriteLine("Stopping audio recording...");
+                _waveIn?.StopRecording();
+                _waveIn?.Dispose();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error disposing audio: {ex.Message}");
+            }
+
+            // Stop emergency alert playback
+            try
+            {
+                _emergencyAlertPlayback?.Stop();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error stopping emergency playback: {ex.Message}");
+            }
+
+            // Save settings
+            try
+            {
+                _settingsManager?.SaveSettings();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error saving settings: {ex.Message}");
+            }
+
+            Console.WriteLine("Cleanup complete. Terminating process...");
+            
+            // Force immediate process termination
+            // This is necessary because background threads from WebSocket/FNE may not terminate cleanly
+            Environment.Exit(0);
         }
     }
 }
