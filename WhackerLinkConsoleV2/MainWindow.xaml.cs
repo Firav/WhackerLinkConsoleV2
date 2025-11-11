@@ -95,9 +95,21 @@ namespace WhackerLinkConsoleV2
 
         public MainWindow()
         {
-#if !DEBUG
-            ConsoleNative.ShowConsole();
+            // Check command-line arguments for console flag
+            var args = Environment.GetCommandLineArgs();
+            bool showConsole = args.Any(arg => arg.Equals("--console", StringComparison.OrdinalIgnoreCase) || 
+                                               arg.Equals("-console", StringComparison.OrdinalIgnoreCase) ||
+                                               arg.Equals("/console", StringComparison.OrdinalIgnoreCase));
+
+#if DEBUG
+            showConsole = true; // Always show console in debug builds
 #endif
+
+            if (showConsole)
+            {
+                ConsoleNative.ShowConsole();
+            }
+
             InitializeComponent();
             _settingsManager.LoadSettings();
             _selectedChannelsManager = new SelectedChannelsManager();
