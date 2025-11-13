@@ -1754,7 +1754,7 @@ namespace WhackerLinkConsoleV2
 
                         await Task.Delay(1000);
 
-                        SendAlertTone("hold.wav", true);
+                        SendAlertTone(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Audio", "hold.wav"), true);
                         // });
                     }
                 } else
@@ -1766,7 +1766,7 @@ namespace WhackerLinkConsoleV2
                         handler.SendP25TDU(UInt32.Parse(system.Rid), UInt32.Parse(cpgChannel.Tgid), true);
                         await Task.Delay(1000);
 
-                        SendAlertTone("hold.wav", true);
+                        SendAlertTone(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Audio", "hold.wav"), true);
                     }
                 }
             }
@@ -1792,7 +1792,8 @@ namespace WhackerLinkConsoleV2
         private void btnAlert1_Click(object sender, RoutedEventArgs e)
         {
             Dispatcher.Invoke(() => {
-                SendAlertTone("alert1.wav");
+                string alertPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Audio", "alert1.wav");
+                SendAlertTone(alertPath);
             });
         }
 
@@ -1800,7 +1801,8 @@ namespace WhackerLinkConsoleV2
         {
             Dispatcher.Invoke(() =>
             {
-                SendAlertTone("alert2.wav");
+                string alertPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Audio", "alert2.wav");
+                SendAlertTone(alertPath);
             });
         }
 
@@ -1808,7 +1810,8 @@ namespace WhackerLinkConsoleV2
         {
             Dispatcher.Invoke(() =>
             {
-                SendAlertTone("alert3.wav");
+                string alertPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Audio", "alert3.wav");
+                SendAlertTone(alertPath);
             });
         }
 
