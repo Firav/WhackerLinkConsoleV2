@@ -28,23 +28,27 @@ using WhackerLinkConsoleV2.Controls;
 namespace WhackerLinkConsoleV2
 {
     /// <summary>
-    /// Manages per-channel PTT hotkey registrations and triggering
+    /// Manages per-channel PTT and toggle hotkey registrations and triggering
     /// </summary>
     public class ChannelHotKeyManager
     {
         private GlobalHotKeyManager _globalHotKeyManager;
         private ChannelKeybindingManager _channelKeybindingManager;
         private Dictionary<string, int> _channelHotKeyIds = new Dictionary<string, int>();
+        private Dictionary<string, int> _channelToggleHotKeyIds = new Dictionary<string, int>();
         private Dictionary<int, string> _hotKeyIdToChannelName = new Dictionary<int, string>();
+        private Dictionary<int, string> _toggleHotKeyIdToChannelName = new Dictionary<int, string>();
         private List<ChannelBox> _allChannels = new List<ChannelBox>();
         private string _currentCodeplugIdentifier;
         private Action<ChannelBox, bool> _onChannelPttTriggered;
+        private Action<ChannelBox> _onChannelToggleTriggered;
 
-        public ChannelHotKeyManager(GlobalHotKeyManager globalHotKeyManager, ChannelKeybindingManager channelKeybindingManager, Action<ChannelBox, bool> onChannelPttTriggered)
+        public ChannelHotKeyManager(GlobalHotKeyManager globalHotKeyManager, ChannelKeybindingManager channelKeybindingManager, Action<ChannelBox, bool> onChannelPttTriggered, Action<ChannelBox> onChannelToggleTriggered = null)
         {
             _globalHotKeyManager = globalHotKeyManager;
             _channelKeybindingManager = channelKeybindingManager;
             _onChannelPttTriggered = onChannelPttTriggered;
+            _onChannelToggleTriggered = onChannelToggleTriggered;
         }
 
         /// <summary>
@@ -60,22 +64,36 @@ namespace WhackerLinkConsoleV2
             _currentCodeplugIdentifier = codeplugIdentifier;
             _allChannels = channels;
 
-            // Register hotkeys for channels that have keybindings
-            int registeredCount = 0;
+            // Register PTT hotkeys for channels that have PTT keybindings
+            int registeredPttCount = 0;
+            int registeredToggleCount = 0;
+            
             foreach (var channel in channels)
             {
-                var keybinding = _channelKeybindingManager.GetChannelKeybinding(codeplugIdentifier, channel.ChannelName);
-                
-                if (!string.IsNullOrWhiteSpace(keybinding))
+                // Register PTT hotkey
+                var pttKeybinding = _channelKeybindingManager.GetChannelKeybinding(codeplugIdentifier, channel.ChannelName);
+                if (!string.IsNullOrWhiteSpace(pttKeybinding))
                 {
-                    RegisterChannelHotkey(channel.ChannelName, keybinding);
-                    registeredCount++;
+                    RegisterChannelHotkey(channel.ChannelName, pttKeybinding);
+                    registeredPttCount++;
+                }
+
+                // Register toggle hotkey
+                var toggleKeybinding = _channelKeybindingManager.GetChannelToggleKeybinding(codeplugIdentifier, channel.ChannelName);
+                if (!string.IsNullOrWhiteSpace(toggleKeybinding))
+                {
+                    RegisterChannelToggleHotkey(channel.ChannelName, toggleKeybinding);
+                    registeredToggleCount++;
                 }
             }
             
-            if (registeredCount > 0)
+            if (registeredPttCount > 0)
             {
-                Console.WriteLine($"Registered {registeredCount} channel hotkey(s)");
+                Console.WriteLine($"Registered {registeredPttCount} channel PTT hotkey(s)");
+            }
+            if (registeredToggleCount > 0)
+            {
+                Console.WriteLine($"Registered {registeredToggleCount} channel toggle hotkey(s)");
             }
         }
 
@@ -126,15 +144,70 @@ namespace WhackerLinkConsoleV2
         }
 
         /// <summary>
+        /// Registers a toggle hotkey for a specific channel
+        /// </summary>
+        private void RegisterChannelToggleHotkey(string channelName, string keybinding)
+        {
+            if (_globalHotKeyManager == null)
+            {
+                Console.WriteLine($"ERROR: GlobalHotKeyManager is null! Cannot register toggle hotkey for '{channelName}'");
+                return;
+            }
+
+            // Unregister old toggle hotkey if it exists
+            if (_channelToggleHotKeyIds.ContainsKey(channelName))
+            {
+                var oldHotKeyId = _channelToggleHotKeyIds[channelName];
+                _globalHotKeyManager.UnregisterHotKey(oldHotKeyId);
+                _channelToggleHotKeyIds.Remove(channelName);
+                _toggleHotKeyIdToChannelName.Remove(oldHotKeyId);
+            }
+
+            // Parse the keybinding
+            if (!KeybindingParser.TryParseKeybinding(keybinding, out var modifiers, out var key))
+            {
+                Console.WriteLine($"ERROR: Failed to parse toggle keybinding '{keybinding}' for channel '{channelName}'");
+                return;
+            }
+
+            // Register with global hotkey manager (toggle only needs key down event)
+            var hotKeyId = _globalHotKeyManager.RegisterHotKey(
+                modifiers,
+                key,
+                () => OnChannelToggleHotKeyDown(channelName),
+                null // No key up action needed for toggle
+            );
+
+            if (hotKeyId != -1)
+            {
+                _channelToggleHotKeyIds[channelName] = hotKeyId;
+                _toggleHotKeyIdToChannelName[hotKeyId] = channelName;
+            }
+            else
+            {
+                Console.WriteLine($"Failed to register toggle hotkey '{keybinding}' for channel '{channelName}'");
+            }
+        }
+
+        /// <summary>
         /// Unregisters a hotkey for a specific channel
         /// </summary>
         public void UnregisterChannelHotkey(string channelName)
         {
-            if (_channelHotKeyIds.TryGetValue(channelName, out var hotKeyId))
+            // Unregister PTT hotkey
+            if (_channelHotKeyIds.TryGetValue(channelName, out var pttHotKeyId))
             {
-                _globalHotKeyManager.UnregisterHotKey(hotKeyId);
+                _globalHotKeyManager.UnregisterHotKey(pttHotKeyId);
                 _channelHotKeyIds.Remove(channelName);
-                _hotKeyIdToChannelName.Remove(hotKeyId);
+                _hotKeyIdToChannelName.Remove(pttHotKeyId);
+            }
+
+            // Unregister toggle hotkey
+            if (_channelToggleHotKeyIds.TryGetValue(channelName, out var toggleHotKeyId))
+            {
+                _globalHotKeyManager.UnregisterHotKey(toggleHotKeyId);
+                _channelToggleHotKeyIds.Remove(channelName);
+                _toggleHotKeyIdToChannelName.Remove(toggleHotKeyId);
             }
         }
 
@@ -143,10 +216,28 @@ namespace WhackerLinkConsoleV2
         /// </summary>
         public void UnregisterAllChannelHotkeys()
         {
+            // Unregister all PTT hotkeys
             var channelNames = new List<string>(_channelHotKeyIds.Keys);
             foreach (var channelName in channelNames)
             {
-                UnregisterChannelHotkey(channelName);
+                if (_channelHotKeyIds.TryGetValue(channelName, out var hotKeyId))
+                {
+                    _globalHotKeyManager.UnregisterHotKey(hotKeyId);
+                    _channelHotKeyIds.Remove(channelName);
+                    _hotKeyIdToChannelName.Remove(hotKeyId);
+                }
+            }
+
+            // Unregister all toggle hotkeys
+            var toggleChannelNames = new List<string>(_channelToggleHotKeyIds.Keys);
+            foreach (var channelName in toggleChannelNames)
+            {
+                if (_channelToggleHotKeyIds.TryGetValue(channelName, out var hotKeyId))
+                {
+                    _globalHotKeyManager.UnregisterHotKey(hotKeyId);
+                    _channelToggleHotKeyIds.Remove(channelName);
+                    _toggleHotKeyIdToChannelName.Remove(hotKeyId);
+                }
             }
         }
 
@@ -171,6 +262,18 @@ namespace WhackerLinkConsoleV2
             if (channel != null)
             {
                 _onChannelPttTriggered?.Invoke(channel, false);
+            }
+        }
+
+        /// <summary>
+        /// Called when a channel toggle hotkey is pressed
+        /// </summary>
+        private void OnChannelToggleHotKeyDown(string channelName)
+        {
+            var channel = _allChannels.FirstOrDefault(c => c.ChannelName == channelName);
+            if (channel != null)
+            {
+                _onChannelToggleTriggered?.Invoke(channel);
             }
         }
     }

@@ -714,7 +714,8 @@ namespace WhackerLinkConsoleV2
                     _channelHotKeyManager = new ChannelHotKeyManager(
                         _globalHotKeyManager,
                         _channelKeybindingManager,
-                        OnChannelHotKeyTriggered
+                        OnChannelHotKeyTriggered,
+                        OnChannelToggleTriggered
                     );
                 }
 
@@ -804,6 +805,21 @@ namespace WhackerLinkConsoleV2
                         channel.PttState = false;
                         ChannelBox_PTTButtonClicked(channel, channel);
                     }
+                }
+            });
+        }
+
+        private void OnChannelToggleTriggered(ChannelBox channel)
+        {
+            Dispatcher.Invoke(() =>
+            {
+                if (channel != null)
+                {
+                    // Toggle the channel's selection state (like clicking on it)
+                    channel.ToggleSelection();
+                    
+                    // Optionally log the toggle action
+                    Console.WriteLine($"Channel '{channel.ChannelName}' toggled to {(channel.IsSelected ? "selected" : "unselected")}");
                 }
             });
         }

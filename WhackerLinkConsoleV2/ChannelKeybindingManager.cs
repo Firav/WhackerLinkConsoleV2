@@ -45,9 +45,15 @@ namespace WhackerLinkConsoleV2
         public class ChannelKeybindingProfile
         {
             /// <summary>
-            /// Channel name -> keybinding string mapping (e.g., "MainChannel" -> "Ctrl+T")
+            /// Channel name -> PTT keybinding string mapping (e.g., "MainChannel" -> "Ctrl+T")
             /// </summary>
             public Dictionary<string, string> ChannelKeybindings { get; set; } = 
+                new Dictionary<string, string>();
+                
+            /// <summary>
+            /// Channel name -> toggle keybinding string mapping (e.g., "MainChannel" -> "Ctrl+G")
+            /// </summary>
+            public Dictionary<string, string> ChannelToggleKeybindings { get; set; } = 
                 new Dictionary<string, string>();
         }
 
@@ -144,12 +150,57 @@ namespace WhackerLinkConsoleV2
         }
 
         /// <summary>
+        /// Sets a toggle keybinding for a specific channel in a codeplug
+        /// </summary>
+        public void SetChannelToggleKeybinding(string codeplugIdentifier, string channelName, string keybinding)
+        {
+            var profile = GetOrCreateProfile(codeplugIdentifier);
+            
+            if (string.IsNullOrWhiteSpace(keybinding))
+            {
+                profile.ChannelToggleKeybindings.Remove(channelName);
+            }
+            else
+            {
+                profile.ChannelToggleKeybindings[channelName] = keybinding;
+            }
+
+            SaveKeybindings();
+            Console.WriteLine($"Set toggle keybinding for {channelName}: {keybinding}");
+        }
+
+        /// <summary>
+        /// Gets the toggle keybinding for a specific channel, returns null if not set
+        /// </summary>
+        public string GetChannelToggleKeybinding(string codeplugIdentifier, string channelName)
+        {
+            if (!_keybindingProfiles.TryGetValue(codeplugIdentifier, out var profile))
+                return null;
+
+            if (profile.ChannelToggleKeybindings.TryGetValue(channelName, out var keybinding))
+                return keybinding;
+
+            return null;
+        }
+
+        /// <summary>
         /// Gets all channels with keybindings for a codeplug
         /// </summary>
         public IEnumerable<string> GetChannelsWithKeybindings(string codeplugIdentifier)
         {
             if (_keybindingProfiles.TryGetValue(codeplugIdentifier, out var profile))
                 return profile.ChannelKeybindings.Keys;
+
+            return new List<string>();
+        }
+
+        /// <summary>
+        /// Gets all channels with toggle keybindings for a codeplug
+        /// </summary>
+        public IEnumerable<string> GetChannelsWithToggleKeybindings(string codeplugIdentifier)
+        {
+            if (_keybindingProfiles.TryGetValue(codeplugIdentifier, out var profile))
+                return profile.ChannelToggleKeybindings.Keys;
 
             return new List<string>();
         }
@@ -164,6 +215,19 @@ namespace WhackerLinkConsoleV2
             {
                 SaveKeybindings();
                 Console.WriteLine($"Removed keybinding for {channelName}");
+            }
+        }
+
+        /// <summary>
+        /// Removes a toggle keybinding for a specific channel
+        /// </summary>
+        public void RemoveChannelToggleKeybinding(string codeplugIdentifier, string channelName)
+        {
+            var profile = GetOrCreateProfile(codeplugIdentifier);
+            if (profile.ChannelToggleKeybindings.Remove(channelName))
+            {
+                SaveKeybindings();
+                Console.WriteLine($"Removed toggle keybinding for {channelName}");
             }
         }
 

@@ -31,7 +31,7 @@
             </MenuItem>
             <MenuItem Header="Edit">
                 <MenuItem Header="Audio Settings" Click="AudioSettings_Click" />
-                <MenuItem Header="Configure PTT Keybindings" Click="ConfigurePttKeybindings_Click"/>
+                <MenuItem Header="Configure Keybindings" Click="ConfigurePttKeybindings_Click"/>
                 <MenuItem Header="Enable Edit Mode" Click="ToggleEditMode_Click"/>
                 <MenuItem Header="Select Widgets to Display" Click="SelectWidgets_Click"/>
                 <MenuItem Header="Reset Settings" Click="ResetSettings_Click"/>

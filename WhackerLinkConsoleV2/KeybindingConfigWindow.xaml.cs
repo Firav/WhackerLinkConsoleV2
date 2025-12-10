@@ -39,6 +39,7 @@ namespace WhackerLinkConsoleV2
 
         private bool _recordingGlobalPtt = false;
         private Dictionary<string, TextBox> _channelKeybindingControls = new Dictionary<string, TextBox>();
+        private Dictionary<string, TextBox> _channelToggleKeybindingControls = new Dictionary<string, TextBox>();
 
         /// <summary>
         /// Gets whether keybindings were successfully applied and should take immediate effect
@@ -66,11 +67,18 @@ namespace WhackerLinkConsoleV2
             // Load global keybinding
             GlobalPttKeybindDisplay.Text = _settingsManager.GlobalPttKeybind;
 
-            // Load codeplug identifier
+            // Load codeplug identifier for both tabs
             CodeplugIdentifierText.Text = _codeplugIdentifier;
+            CodeplugIdentifierTextToggle.Text = _codeplugIdentifier;
         }
 
         private void GenerateChannelControls()
+        {
+            GeneratePttChannelControls();
+            GenerateToggleChannelControls();
+        }
+
+        private void GeneratePttChannelControls()
         {
             ChannelKeybindingsPanel.Children.Clear();
             _channelKeybindingControls.Clear();
@@ -167,6 +175,103 @@ namespace WhackerLinkConsoleV2
             }
         }
 
+        private void GenerateToggleChannelControls()
+        {
+            ChannelToggleKeybindingsPanel.Children.Clear();
+            _channelToggleKeybindingControls.Clear();
+
+            if (_codeplug == null || _codeplug.Zones == null || _codeplug.Zones.Count == 0)
+            {
+                var noChannelsText = new TextBlock
+                {
+                    Text = "No channels available",
+                    Foreground = System.Windows.Media.Brushes.Gray,
+                    FontSize = 11,
+                    Margin = new Thickness(0, 10, 0, 0)
+                };
+                ChannelToggleKeybindingsPanel.Children.Add(noChannelsText);
+                return;
+            }
+
+            var allChannels = _codeplug.Zones.SelectMany(z => z.Channels).Distinct().OrderBy(c => c.Name).ToList();
+
+            if (allChannels.Count == 0)
+            {
+                var noChannelsText = new TextBlock
+                {
+                    Text = "No channels in codeplug",
+                    Foreground = System.Windows.Media.Brushes.Gray,
+                    FontSize = 11,
+                    Margin = new Thickness(0, 10, 0, 0)
+                };
+                ChannelToggleKeybindingsPanel.Children.Add(noChannelsText);
+                return;
+            }
+
+            foreach (var channel in allChannels)
+            {
+                var existingKeybind = _channelKeybindingManager.GetChannelToggleKeybinding(_codeplugIdentifier, channel.Name) ?? "";
+
+                var grid = new Grid
+                {
+                    Margin = new Thickness(0, 0, 0, 10)
+                };
+                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(150) });
+                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+                // Channel name
+                var channelNameText = new TextBlock
+                {
+                    Text = channel.Name,
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Margin = new Thickness(0, 0, 10, 0)
+                };
+                Grid.SetColumn(channelNameText, 0);
+                grid.Children.Add(channelNameText);
+
+                // Keybinding textbox
+                var keybindTextBox = new TextBox
+                {
+                    Text = existingKeybind,
+                    IsReadOnly = true,
+                    VerticalContentAlignment = VerticalAlignment.Center,
+                    Padding = new Thickness(5),
+                    Margin = new Thickness(0, 0, 10, 0)
+                };
+                Grid.SetColumn(keybindTextBox, 1);
+                grid.Children.Add(keybindTextBox);
+
+                _channelToggleKeybindingControls[channel.Name] = keybindTextBox;
+
+                // Record button
+                var recordButton = new Button
+                {
+                    Content = "Record",
+                    Width = 80,
+                    Tag = channel.Name,
+                    Margin = new Thickness(0, 0, 10, 0)
+                };
+                recordButton.Click += (s, e) => RecordChannelToggleKeybind_Click(channel.Name);
+                Grid.SetColumn(recordButton, 2);
+                grid.Children.Add(recordButton);
+
+                // Clear button
+                var clearButton = new Button
+                {
+                    Content = "Clear",
+                    Width = 80,
+                    Tag = channel.Name
+                };
+                clearButton.Click += (s, e) => ClearChannelToggleKeybind_Click(channel.Name);
+                Grid.SetColumn(clearButton, 3);
+                grid.Children.Add(clearButton);
+
+                ChannelToggleKeybindingsPanel.Children.Add(grid);
+            }
+        }
+
         private void RecordGlobalPtt_Click(object sender, RoutedEventArgs e)
         {
             _recordingGlobalPtt = true;
@@ -180,7 +285,18 @@ namespace WhackerLinkConsoleV2
             if (!_channelKeybindingControls.TryGetValue(channelName, out var textBox))
                 return;
 
-            var recordingTag = $"recording_{channelName}";
+            var recordingTag = $"recording_ptt_{channelName}";
+            Tag = recordingTag;
+            textBox.Text = "Press keys...";
+            Focus();
+        }
+
+        private void RecordChannelToggleKeybind_Click(string channelName)
+        {
+            if (!_channelToggleKeybindingControls.TryGetValue(channelName, out var textBox))
+                return;
+
+            var recordingTag = $"recording_toggle_{channelName}";
             Tag = recordingTag;
             textBox.Text = "Press keys...";
             Focus();
@@ -192,11 +308,16 @@ namespace WhackerLinkConsoleV2
                 return;
 
             textBox.Text = "";
-            // Reset any recording state for this channel
-            if (Tag is string tag && tag == $"recording_{channelName}")
-            {
-                Tag = null;
-            }
+            _channelKeybindingManager.SetChannelKeybinding(_codeplugIdentifier, channelName, "");
+        }
+
+        private void ClearChannelToggleKeybind_Click(string channelName)
+        {
+            if (!_channelToggleKeybindingControls.TryGetValue(channelName, out var textBox))
+                return;
+
+            textBox.Text = "";
+            _channelKeybindingManager.SetChannelToggleKeybinding(_codeplugIdentifier, channelName, "");
         }
 
         private void ClearGlobalPtt_Click(object sender, RoutedEventArgs e)
@@ -245,13 +366,26 @@ namespace WhackerLinkConsoleV2
             // Handle channel-specific keybind recording
             if (Tag is string tag && tag.StartsWith("recording_"))
             {
-                var channelName = tag.Substring("recording_".Length);
-                if (_channelKeybindingControls.TryGetValue(channelName, out var textBox))
+                var keybinding = KeybindingParser.KeybindingToString(modifiers, key);
+                
+                if (tag.StartsWith("recording_ptt_"))
                 {
-                    var keybinding = KeybindingParser.KeybindingToString(modifiers, key);
-                    textBox.Text = keybinding;
-                    Tag = null;
+                    var channelName = tag.Substring("recording_ptt_".Length);
+                    if (_channelKeybindingControls.TryGetValue(channelName, out var textBox))
+                    {
+                        textBox.Text = keybinding;
+                    }
                 }
+                else if (tag.StartsWith("recording_toggle_"))
+                {
+                    var channelName = tag.Substring("recording_toggle_".Length);
+                    if (_channelToggleKeybindingControls.TryGetValue(channelName, out var textBox))
+                    {
+                        textBox.Text = keybinding;
+                    }
+                }
+                
+                Tag = null;
                 e.Handled = true;
                 return;
             }
@@ -289,10 +423,32 @@ namespace WhackerLinkConsoleV2
                 {
                     if (!KeybindingParser.TryParseKeybinding(keybinding, out _, out _))
                     {
-                        MessageBox.Show($"Invalid keybinding for channel '{channelName}': {keybinding}", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                        MessageBox.Show($"Invalid PTT keybinding for channel '{channelName}': {keybinding}", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
                         return;
                     }
                     _channelKeybindingManager.SetChannelKeybinding(_codeplugIdentifier, channelName, keybinding);
+                }
+            }
+
+            // Validate and save per-channel toggle keybindings
+            foreach (var kvp in _channelToggleKeybindingControls)
+            {
+                var channelName = kvp.Key;
+                var textBox = kvp.Value;
+                var keybinding = textBox.Text;
+
+                if (string.IsNullOrWhiteSpace(keybinding))
+                {
+                    _channelKeybindingManager.RemoveChannelToggleKeybinding(_codeplugIdentifier, channelName);
+                }
+                else
+                {
+                    if (!KeybindingParser.TryParseKeybinding(keybinding, out _, out _))
+                    {
+                        MessageBox.Show($"Invalid toggle keybinding for channel '{channelName}': {keybinding}", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                        return;
+                    }
+                    _channelKeybindingManager.SetChannelToggleKeybinding(_codeplugIdentifier, channelName, keybinding);
                 }
             }
 
