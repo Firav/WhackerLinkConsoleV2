@@ -641,17 +641,21 @@ namespace WhackerLinkConsoleV2
                 _settingsManager,
                 _channelKeybindingManager,
                 Codeplug,
-                _settingsManager.LastCodeplugPath
+                _settingsManager.LastCodeplugPath,
+                this
             );
 
             configWindow.Owner = this;
             configWindow.ShowDialog();
 
-            // Reinitialize hotkeys after configuration changes
-            InitializeGlobalHotkeys();
-            if (Codeplug != null)
+            // Reinitialize hotkeys only if configuration changes were applied
+            if (configWindow.KeybindingsApplied)
             {
-                InitializeChannelHotkeys();
+                InitializeGlobalHotkeys();
+                if (Codeplug != null)
+                {
+                    InitializeChannelHotkeys();
+                }
             }
         }
 
@@ -668,7 +672,10 @@ namespace WhackerLinkConsoleV2
 
                 // Unregister old hotkey
                 if (_globalPttHotKeyId != -1)
+                {
                     _globalHotKeyManager.UnregisterHotKey(_globalPttHotKeyId);
+                    _globalPttHotKeyId = -1;
+                }
 
                 // Register Global PTT hotkey
                 if (_settingsManager.EnableGlobalPttHotkey && !string.IsNullOrWhiteSpace(_settingsManager.GlobalPttKeybind))
@@ -717,6 +724,43 @@ namespace WhackerLinkConsoleV2
             catch (Exception ex)
             {
                 Console.WriteLine($"ERROR: Failed to initialize channel hotkeys: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Temporarily suspends all hotkeys (used when configuration window is open)
+        /// </summary>
+        public void SuspendHotkeys()
+        {
+            try
+            {
+                _globalHotKeyManager?.UnregisterAllHotKeys();
+                _channelHotKeyManager?.UnregisterAllChannelHotkeys();
+                Console.WriteLine("Hotkeys suspended");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"ERROR: Failed to suspend hotkeys: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Resumes all hotkeys after suspension
+        /// </summary>
+        public void ResumeHotkeys()
+        {
+            try
+            {
+                InitializeGlobalHotkeys();
+                if (Codeplug != null)
+                {
+                    InitializeChannelHotkeys();
+                }
+                Console.WriteLine("Hotkeys resumed");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"ERROR: Failed to resume hotkeys: {ex.Message}");
             }
         }
 

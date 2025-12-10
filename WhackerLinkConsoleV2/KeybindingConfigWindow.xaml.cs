@@ -35,20 +35,30 @@ namespace WhackerLinkConsoleV2
         private ChannelKeybindingManager _channelKeybindingManager;
         private Codeplug _codeplug;
         private string _codeplugIdentifier;
+        private MainWindow _mainWindow;
 
         private bool _recordingGlobalPtt = false;
         private Dictionary<string, TextBox> _channelKeybindingControls = new Dictionary<string, TextBox>();
 
-        public KeybindingConfigWindow(SettingsManager settingsManager, ChannelKeybindingManager channelKeybindingManager, Codeplug codeplug, string codeplugFilePath)
+        /// <summary>
+        /// Gets whether keybindings were successfully applied and should take immediate effect
+        /// </summary>
+        public bool KeybindingsApplied { get; private set; } = false;
+
+        public KeybindingConfigWindow(SettingsManager settingsManager, ChannelKeybindingManager channelKeybindingManager, Codeplug codeplug, string codeplugFilePath, MainWindow mainWindow = null)
         {
             InitializeComponent();
             _settingsManager = settingsManager;
             _channelKeybindingManager = channelKeybindingManager;
             _codeplug = codeplug;
             _codeplugIdentifier = ChannelKeybindingManager.GenerateCodeplugIdentifier(codeplugFilePath);
+            _mainWindow = mainWindow;
 
             LoadSettings();
             GenerateChannelControls();
+            
+            // Suspend all hotkeys while this window is open to prevent background activation
+            SuspendMainWindowHotkeys();
         }
 
         private void LoadSettings()
@@ -104,6 +114,7 @@ namespace WhackerLinkConsoleV2
                 grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(150) });
                 grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
                 grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
                 // Channel name
                 var channelNameText = new TextBlock
@@ -134,11 +145,23 @@ namespace WhackerLinkConsoleV2
                 {
                     Content = "Record",
                     Width = 80,
-                    Tag = channel.Name
+                    Tag = channel.Name,
+                    Margin = new Thickness(0, 0, 10, 0)
                 };
                 recordButton.Click += (s, e) => RecordChannelKeybind_Click(channel.Name);
                 Grid.SetColumn(recordButton, 2);
                 grid.Children.Add(recordButton);
+
+                // Clear button
+                var clearButton = new Button
+                {
+                    Content = "Clear",
+                    Width = 80,
+                    Tag = channel.Name
+                };
+                clearButton.Click += (s, e) => ClearChannelKeybind_Click(channel.Name);
+                Grid.SetColumn(clearButton, 3);
+                grid.Children.Add(clearButton);
 
                 ChannelKeybindingsPanel.Children.Add(grid);
             }
@@ -163,9 +186,29 @@ namespace WhackerLinkConsoleV2
             Focus();
         }
 
+        private void ClearChannelKeybind_Click(string channelName)
+        {
+            if (!_channelKeybindingControls.TryGetValue(channelName, out var textBox))
+                return;
+
+            textBox.Text = "";
+            // Reset any recording state for this channel
+            if (Tag is string tag && tag == $"recording_{channelName}")
+            {
+                Tag = null;
+            }
+        }
+
         private void ClearGlobalPtt_Click(object sender, RoutedEventArgs e)
         {
             GlobalPttKeybindDisplay.Text = "";
+            // Reset global PTT recording state if active
+            if (_recordingGlobalPtt)
+            {
+                _recordingGlobalPtt = false;
+                RecordGlobalPttButton.Content = "Record";
+                RecordGlobalPttButton.IsEnabled = true;
+            }
         }
 
         protected override void OnPreviewKeyDown(KeyEventArgs e)
@@ -253,13 +296,46 @@ namespace WhackerLinkConsoleV2
                 }
             }
 
-            MessageBox.Show("Keybindings saved successfully! Restart the application or reload the codeplug to apply changes.", "Success", MessageBoxButton.OK, MessageBoxImage.Information);
+            KeybindingsApplied = true;
+
+            MessageBox.Show("Keybindings saved and applied successfully!", "Success", MessageBoxButton.OK, MessageBoxImage.Information);
             Close();
         }
 
         private void Close_Click(object sender, RoutedEventArgs e)
         {
             Close();
+        }
+
+        private void SuspendMainWindowHotkeys()
+        {
+            try
+            {
+                _mainWindow?.SuspendHotkeys();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"WARNING: Failed to suspend main window hotkeys: {ex.Message}");
+            }
+        }
+
+        private void ResumeMainWindowHotkeys()
+        {
+            try
+            {
+                _mainWindow?.ResumeHotkeys();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"WARNING: Failed to resume main window hotkeys: {ex.Message}");
+            }
+        }
+
+        protected override void OnClosed(EventArgs e)
+        {
+            // Always resume hotkeys when the window is closed, regardless of how it was closed
+            ResumeMainWindowHotkeys();
+            base.OnClosed(e);
         }
     }
 }

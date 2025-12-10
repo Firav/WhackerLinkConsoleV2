@@ -52,13 +52,12 @@ namespace WhackerLinkConsoleV2
         /// </summary>
         public void InitializeChannelHotkeys(string codeplugIdentifier, List<ChannelBox> channels)
         {
-            // Unregister old hotkeys if codeplug changed
-            if (_currentCodeplugIdentifier != codeplugIdentifier)
-            {
-                UnregisterAllChannelHotkeys();
-                _currentCodeplugIdentifier = codeplugIdentifier;
-            }
-
+            // Always unregister all existing channel hotkeys first to ensure 
+            // cleared keybindings are properly removed
+            UnregisterAllChannelHotkeys();
+            
+            // Update current codeplug identifier
+            _currentCodeplugIdentifier = codeplugIdentifier;
             _allChannels = channels;
 
             // Register hotkeys for channels that have keybindings
