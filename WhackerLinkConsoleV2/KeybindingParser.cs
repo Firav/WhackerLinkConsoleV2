@@ -128,6 +128,19 @@ namespace WhackerLinkConsoleV2
         /// </summary>
         public static string KeybindingToString(ModifierKeys modifiers, Key key)
         {
+            var result = ModifiersToString(modifiers);
+            if (!string.IsNullOrEmpty(result))
+                result += "+";
+            result += key.ToString();
+
+            return result;
+        }
+
+        /// <summary>
+        /// Converts ModifierKeys to a string representation (without the final key)
+        /// </summary>
+        public static string ModifiersToString(ModifierKeys modifiers)
+        {
             var result = "";
 
             if ((modifiers & ModifierKeys.Control) == ModifierKeys.Control)
@@ -139,9 +152,7 @@ namespace WhackerLinkConsoleV2
             if ((modifiers & ModifierKeys.Windows) == ModifierKeys.Windows)
                 result += "Win+";
 
-            result += key.ToString();
-
-            return result;
+            return result.TrimEnd('+');
         }
     }
 }

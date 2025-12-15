@@ -40,6 +40,13 @@ namespace WhackerLinkConsoleV2
         private bool _recordingGlobalPtt = false;
         private Dictionary<string, TextBox> _channelKeybindingControls = new Dictionary<string, TextBox>();
         private Dictionary<string, TextBox> _channelToggleKeybindingControls = new Dictionary<string, TextBox>();
+        
+        // Key recording state tracking
+        private bool _isRecording = false;
+        private ModifierKeys _recordedModifiers = ModifierKeys.None;
+        private Key _recordedKey = Key.None;
+        private string _pendingKeybinding = "";
+        private readonly HashSet<Key> _pressedKeys = new HashSet<Key>();
 
         /// <summary>
         /// Gets whether keybindings were successfully applied and should take immediate effect
@@ -274,6 +281,7 @@ namespace WhackerLinkConsoleV2
 
         private void RecordGlobalPtt_Click(object sender, RoutedEventArgs e)
         {
+            StartRecording();
             _recordingGlobalPtt = true;
             RecordGlobalPttButton.Content = "Press keys...";
             RecordGlobalPttButton.IsEnabled = false;
@@ -285,6 +293,7 @@ namespace WhackerLinkConsoleV2
             if (!_channelKeybindingControls.TryGetValue(channelName, out var textBox))
                 return;
 
+            StartRecording();
             var recordingTag = $"recording_ptt_{channelName}";
             Tag = recordingTag;
             textBox.Text = "Press keys...";
@@ -296,6 +305,7 @@ namespace WhackerLinkConsoleV2
             if (!_channelToggleKeybindingControls.TryGetValue(channelName, out var textBox))
                 return;
 
+            StartRecording();
             var recordingTag = $"recording_toggle_{channelName}";
             Tag = recordingTag;
             textBox.Text = "Press keys...";
@@ -326,19 +336,46 @@ namespace WhackerLinkConsoleV2
             // Reset global PTT recording state if active
             if (_recordingGlobalPtt)
             {
+                StopRecording();
                 _recordingGlobalPtt = false;
                 RecordGlobalPttButton.Content = "Record";
                 RecordGlobalPttButton.IsEnabled = true;
             }
         }
 
+        private void StartRecording()
+        {
+            _isRecording = true;
+            _recordedModifiers = ModifierKeys.None;
+            _recordedKey = Key.None;
+            _pendingKeybinding = "";
+            _pressedKeys.Clear();
+        }
+        
+        private void StopRecording()
+        {
+            _isRecording = false;
+            _recordedModifiers = ModifierKeys.None;
+            _recordedKey = Key.None;
+            _pendingKeybinding = "";
+            _pressedKeys.Clear();
+        }
+
         protected override void OnPreviewKeyDown(KeyEventArgs e)
         {
-            // Get current modifiers
-            var modifiers = Keyboard.Modifiers;
-            var key = e.Key;
+            if (!_isRecording)
+            {
+                base.OnPreviewKeyDown(e);
+                return;
+            }
 
-            // Don't record if only a modifier key is pressed (wait for the actual key)
+            var key = e.Key;
+            var modifiers = Keyboard.Modifiers;
+            
+            // Track all pressed keys
+            _pressedKeys.Add(key);
+            
+            // If this is a modifier key, just track it
             if (key == Key.LeftCtrl || key == Key.RightCtrl ||
                 key == Key.LeftShift || key == Key.RightShift ||
                 key == Key.LeftAlt || key == Key.RightAlt ||
@@ -346,34 +383,73 @@ namespace WhackerLinkConsoleV2
                 key == Key.System)
             {
                 e.Handled = true;
+                UpdateRecordingDisplay(modifiers, Key.None);
                 return;
             }
-
-            // Handle global PTT recording
+            
+            // This is a non-modifier key - capture the combination
+            _recordedModifiers = modifiers;
+            _recordedKey = key;
+            _pendingKeybinding = KeybindingParser.KeybindingToString(modifiers, key);
+            
+            UpdateRecordingDisplay(modifiers, key);
+            e.Handled = true;
+        }
+        
+        protected override void OnPreviewKeyUp(KeyEventArgs e)
+        {
+            if (!_isRecording)
+            {
+                base.OnPreviewKeyUp(e);
+                return;
+            }
+            
+            var key = e.Key;
+            _pressedKeys.Remove(key);
+            
+            // If all keys have been released and we have a pending keybinding, finalize it
+            if (_pressedKeys.Count == 0 && !string.IsNullOrEmpty(_pendingKeybinding))
+            {
+                FinalizeRecording();
+            }
+            
+            e.Handled = true;
+        }
+        
+        private void UpdateRecordingDisplay(ModifierKeys modifiers, Key key)
+        {
+            string displayText;
+            if (key == Key.None)
+            {
+                // Show just the modifiers being held
+                displayText = KeybindingParser.ModifiersToString(modifiers);
+                if (string.IsNullOrEmpty(displayText))
+                {
+                    displayText = "Press keys...";
+                }
+                else
+                {
+                    displayText += "+...";
+                }
+            }
+            else
+            {
+                displayText = KeybindingParser.KeybindingToString(modifiers, key);
+            }
+            
+            // Update the appropriate display
             if (_recordingGlobalPtt)
             {
-                var keybinding = KeybindingParser.KeybindingToString(modifiers, key);
-                GlobalPttKeybindDisplay.Text = keybinding;
-                
-                _recordingGlobalPtt = false;
-                RecordGlobalPttButton.Content = "Record";
-                RecordGlobalPttButton.IsEnabled = true;
-                
-                e.Handled = true;
-                return;
+                GlobalPttKeybindDisplay.Text = displayText;
             }
-
-            // Handle channel-specific keybind recording
-            if (Tag is string tag && tag.StartsWith("recording_"))
+            else if (Tag is string tag && tag.StartsWith("recording_"))
             {
-                var keybinding = KeybindingParser.KeybindingToString(modifiers, key);
-                
                 if (tag.StartsWith("recording_ptt_"))
                 {
                     var channelName = tag.Substring("recording_ptt_".Length);
                     if (_channelKeybindingControls.TryGetValue(channelName, out var textBox))
                     {
-                        textBox.Text = keybinding;
+                        textBox.Text = displayText;
                     }
                 }
                 else if (tag.StartsWith("recording_toggle_"))
@@ -381,22 +457,55 @@ namespace WhackerLinkConsoleV2
                     var channelName = tag.Substring("recording_toggle_".Length);
                     if (_channelToggleKeybindingControls.TryGetValue(channelName, out var textBox))
                     {
-                        textBox.Text = keybinding;
+                        textBox.Text = displayText;
                     }
                 }
-                
-                Tag = null;
-                e.Handled = true;
-                return;
             }
-
-            base.OnPreviewKeyDown(e);
+        }
+        
+        private void FinalizeRecording()
+        {
+            // Complete the recording with the captured keybinding
+            if (_recordingGlobalPtt)
+            {
+                GlobalPttKeybindDisplay.Text = _pendingKeybinding;
+                _recordingGlobalPtt = false;
+                RecordGlobalPttButton.Content = "Record";
+                RecordGlobalPttButton.IsEnabled = true;
+            }
+            else if (Tag is string tag && tag.StartsWith("recording_"))
+            {
+                if (tag.StartsWith("recording_ptt_"))
+                {
+                    var channelName = tag.Substring("recording_ptt_".Length);
+                    if (_channelKeybindingControls.TryGetValue(channelName, out var textBox))
+                    {
+                        textBox.Text = _pendingKeybinding;
+                    }
+                }
+                else if (tag.StartsWith("recording_toggle_"))
+                {
+                    var channelName = tag.Substring("recording_toggle_".Length);
+                    if (_channelToggleKeybindingControls.TryGetValue(channelName, out var textBox))
+                    {
+                        textBox.Text = _pendingKeybinding;
+                    }
+                }
+                Tag = null;
+            }
+            
+            StopRecording();
         }
 
         private void Apply_Click(object sender, RoutedEventArgs e)
         {
             // Validate and save global keybinding
-            if (!string.IsNullOrWhiteSpace(GlobalPttKeybindDisplay.Text))
+            if (string.IsNullOrWhiteSpace(GlobalPttKeybindDisplay.Text))
+            {
+                // Clear the global PTT keybinding
+                _settingsManager.GlobalPttKeybind = "";
+            }
+            else
             {
                 if (!KeybindingParser.TryParseKeybinding(GlobalPttKeybindDisplay.Text, out _, out _))
                 {
