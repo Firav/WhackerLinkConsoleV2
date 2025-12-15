@@ -72,3 +72,36 @@ zones:
       - name: "Channel C"
         system: "System 1"
         tgid: "16002"
+
+toneBoxes:
+  - id: "TONE_FIRE_1"
+    label: "Fire Dept"
+    toneA: 330.0
+    toneB: 440.0
+    toneADuration: 1.0
+    toneBDuration: 3.0
+    system: "System 1"
+  
+  - id: "TONE_EMS_1"
+    label: "EMS Alert"
+    toneA: 523.25
+    toneB: 659.25
+    toneADuration: 1.5
+    toneBDuration: 4.0
+    system: "System 1"
+  
+  - id: "TONE_POLICE_1"
+    label: "Police"
+    toneA: 784.0
+    toneB: 880.0
+    toneADuration: 0.8
+    toneBDuration: 2.5
+    system: "System 1"
+  
+  - id: "TONE_TEST"
+    label: "Test Tone"
+    toneA: 1000.0
+    toneB: 1500.0
+    toneADuration: 1.0
+    toneBDuration: 3.0
+    system: "System 2"

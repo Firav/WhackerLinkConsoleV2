@@ -27,10 +27,19 @@ namespace WhackerLinkConsoleV2
         public bool ShowSystemStatus { get; private set; } = true;
         public bool ShowChannels { get; private set; } = true;
         public bool ShowAlertTones { get; private set; } = true;
+        public bool ShowToneBoxes { get; private set; } = true;
 
         public WidgetSelectionWindow()
         {
             InitializeComponent();
+        }
+
+        public WidgetSelectionWindow(SettingsManager settings) : this()
+        {
+            SystemStatusCheckBox.IsChecked = settings.ShowSystemStatus;
+            ChannelCheckBox.IsChecked = settings.ShowChannels;
+            AlertToneCheckBox.IsChecked = settings.ShowAlertTones;
+            ToneBoxCheckBox.IsChecked = settings.ShowToneBoxes;
         }
 
         private void ApplyButton_Click(object sender, RoutedEventArgs e)
@@ -38,6 +47,7 @@ namespace WhackerLinkConsoleV2
             ShowSystemStatus = SystemStatusCheckBox.IsChecked ?? false;
             ShowChannels = ChannelCheckBox.IsChecked ?? false;
             ShowAlertTones = AlertToneCheckBox.IsChecked ?? false;
+            ShowToneBoxes = ToneBoxCheckBox.IsChecked ?? false;
             DialogResult = true;
             Close();
         }

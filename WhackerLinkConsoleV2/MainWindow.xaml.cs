@@ -27,6 +27,7 @@ using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using WhackerLinkConsoleV2.Controls;
 using WhackerLinkLib.Models.Radio;
 using YamlDotNet.Serialization;
 using YamlDotNet.Serialization.NamingConventions;
@@ -432,6 +433,41 @@ namespace WhackerLinkConsoleV2
                     alertTone.MouseRightButtonUp += AlertTone_MouseRightButtonUp;
 
                     ChannelsCanvas.Children.Add(alertTone);
+                }
+            }
+
+            if (_settingsManager.ShowToneBoxes && Codeplug?.ToneBoxes != null)
+            {
+                foreach (var toneBoxDef in Codeplug.ToneBoxes)
+                {
+                    var toneBox = new ToneBox(toneBoxDef.Id, toneBoxDef.Label, toneBoxDef.ToneA, toneBoxDef.ToneB, toneBoxDef.ToneADuration, toneBoxDef.ToneBDuration)
+                    {
+                        IsEditMode = isEditMode
+                    };
+
+                    toneBox.OnToneSequence += SendToneSequence;
+
+                    if (_settingsManager.ToneBoxPositions.TryGetValue(toneBoxDef.Id, out var position))
+                    {
+                        Canvas.SetLeft(toneBox, position.X);
+                        Canvas.SetTop(toneBox, position.Y);
+                    }
+                    else
+                    {
+                        Canvas.SetLeft(toneBox, offsetX);
+                        Canvas.SetTop(toneBox, offsetY);
+                    }
+
+                    toneBox.MouseRightButtonUp += ToneBox_MouseRightButtonUp;
+
+                    ChannelsCanvas.Children.Add(toneBox);
+
+                    offsetX += 110;
+                    if (offsetX + 105 > ChannelsCanvas.ActualWidth)
+                    {
+                        offsetX = 20;
+                        offsetY += 60;
+                    }
                 }
             }
 
@@ -1245,13 +1281,14 @@ namespace WhackerLinkConsoleV2
 
         private void SelectWidgets_Click(object sender, RoutedEventArgs e)
         {
-            WidgetSelectionWindow widgetSelectionWindow = new WidgetSelectionWindow();
+            WidgetSelectionWindow widgetSelectionWindow = new WidgetSelectionWindow(_settingsManager);
             widgetSelectionWindow.Owner = this;
             if (widgetSelectionWindow.ShowDialog() == true)
             {
                 _settingsManager.ShowSystemStatus = widgetSelectionWindow.ShowSystemStatus;
                 _settingsManager.ShowChannels = widgetSelectionWindow.ShowChannels;
                 _settingsManager.ShowAlertTones = widgetSelectionWindow.ShowAlertTones;
+                _settingsManager.ShowToneBoxes = widgetSelectionWindow.ShowToneBoxes;
 
                 GenerateChannelWidgets();
                 _settingsManager.SaveSettings();
@@ -1750,6 +1787,104 @@ namespace WhackerLinkConsoleV2
 
                 AdjustCanvasHeight();
             }
+        }
+
+        private void ToneBox_MouseRightButtonUp(object sender, MouseButtonEventArgs e)
+        {
+            if (!isEditMode) return;
+
+            if (sender is ToneBox toneBox)
+            {
+                double x = Canvas.GetLeft(toneBox);
+                double y = Canvas.GetTop(toneBox);
+                _settingsManager.UpdateToneBoxPosition(toneBox.ToneId, x, y);
+
+                AdjustCanvasHeight();
+            }
+        }
+
+        private void SendToneSequence(ToneBox toneBox)
+        {
+            Task.Run(async () =>
+            {
+                try
+                {
+                    foreach (ChannelBox channel in _selectedChannelsManager.GetSelectedChannels())
+                    {
+                        if (channel.SystemName == PLAYBACKSYS || channel.ChannelName == PLAYBACKCHNAME || channel.DstId == PLAYBACKTG)
+                            continue;
+
+                        Codeplug.System system = Codeplug.GetSystemForChannel(channel.ChannelName);
+                        Codeplug.Channel cpgChannel = Codeplug.GetChannelByName(channel.ChannelName);
+
+                        if (channel.PageState)
+                        {
+                            ToneGenerator generator = new ToneGenerator();
+
+                            byte[] toneA = generator.GenerateTone(toneBox.ToneA, toneBox.ToneADuration);
+                            byte[] toneB = generator.GenerateTone(toneBox.ToneB, toneBox.ToneBDuration);
+
+                            byte[] combinedAudio = new byte[toneA.Length + toneB.Length];
+                            Buffer.BlockCopy(toneA, 0, combinedAudio, 0, toneA.Length);
+                            Buffer.BlockCopy(toneB, 0, combinedAudio, toneA.Length, toneB.Length);
+
+                            int chunkSize = 1600;
+
+                            if (system.IsDvm)
+                                chunkSize = 320;
+
+                            int totalChunks = (combinedAudio.Length + chunkSize - 1) / chunkSize;
+
+                            Task.Run(() =>
+                            {
+                                _audioManager.AddTalkgroupStream(cpgChannel.Tgid, combinedAudio);
+                            });
+
+                            for (int i = 0; i < totalChunks; i++)
+                            {
+                                int offset = i * chunkSize;
+                                int size = Math.Min(chunkSize, combinedAudio.Length - offset);
+
+                                byte[] chunk = new byte[size];
+                                Buffer.BlockCopy(combinedAudio, offset, chunk, 0, size);
+
+                                if (!system.IsDvm)
+                                {
+                                    IPeer handler = _webSocketManager.GetWebSocketHandler(system.Name);
+                                    // Implement WebSocket tone sending logic if needed
+                                }
+                                else
+                                {
+                                    PeerSystem handler = _fneSystemManager.GetFneSystem(system.Name);
+                                    P25EncodeAudioFrame(chunk, handler, channel, cpgChannel, system);
+                                }
+
+                                await Task.Delay(200);
+                            }
+
+                            if (system.IsDvm)
+                            {
+                                PeerSystem handler = _fneSystemManager.GetFneSystem(system.Name);
+                                await Task.Delay(3000);
+                                handler.SendP25TDU(UInt32.Parse(system.Rid), UInt32.Parse(cpgChannel.Tgid), false);
+                            }
+
+                            Dispatcher.Invoke(() =>
+                            {
+                                channel.PageState = false;
+                                channel.PageSelectButton.Background = channel.grayGradient;
+                            });
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Dispatcher.Invoke(() =>
+                    {
+                        MessageBox.Show($"Failed to send tone sequence: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    });
+                }
+            });
         }
 
         private void AdjustCanvasHeight()

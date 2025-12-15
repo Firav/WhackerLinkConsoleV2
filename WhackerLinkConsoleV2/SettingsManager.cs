@@ -30,6 +30,7 @@ namespace WhackerLinkConsoleV2
         public bool ShowSystemStatus { get; set; } = true;
         public bool ShowChannels { get; set; } = true;
         public bool ShowAlertTones { get; set; } = true;
+        public bool ShowToneBoxes { get; set; } = true;
 
         public string LastCodeplugPath { get; set; } = null;
 
@@ -37,6 +38,7 @@ namespace WhackerLinkConsoleV2
         public Dictionary<string, ChannelPosition> SystemStatusPositions { get; set; } = new Dictionary<string, ChannelPosition>();
         public List<string> AlertToneFilePaths { get; set; } = new List<string>();
         public Dictionary<string, ChannelPosition> AlertTonePositions { get; set; } = new Dictionary<string, ChannelPosition>();
+        public Dictionary<string, ChannelPosition> ToneBoxPositions { get; set; } = new Dictionary<string, ChannelPosition>();
         public Dictionary<string, int> ChannelOutputDevices { get; set; } = new Dictionary<string, int>();
 
         // Hotkey bindings for global PTT
@@ -58,11 +60,13 @@ namespace WhackerLinkConsoleV2
                     ShowSystemStatus = loadedSettings.ShowSystemStatus;
                     ShowChannels = loadedSettings.ShowChannels;
                     ShowAlertTones = loadedSettings.ShowAlertTones;
+                    ShowToneBoxes = loadedSettings.ShowToneBoxes;
                     LastCodeplugPath = loadedSettings.LastCodeplugPath;
                     ChannelPositions = loadedSettings.ChannelPositions ?? new Dictionary<string, ChannelPosition>();
                     SystemStatusPositions = loadedSettings.SystemStatusPositions ?? new Dictionary<string, ChannelPosition>();
                     AlertToneFilePaths = loadedSettings.AlertToneFilePaths ?? new List<string>();
                     AlertTonePositions = loadedSettings.AlertTonePositions ?? new Dictionary<string, ChannelPosition>();
+                    ToneBoxPositions = loadedSettings.ToneBoxPositions ?? new Dictionary<string, ChannelPosition>();
                     ChannelOutputDevices = loadedSettings.ChannelOutputDevices ?? new Dictionary<string, int>();
                     GlobalPttKeybind = loadedSettings.GlobalPttKeybind ?? "Ctrl+T";
                     EnableGlobalPttHotkey = loadedSettings.EnableGlobalPttHotkey;
@@ -86,6 +90,12 @@ namespace WhackerLinkConsoleV2
         public void UpdateAlertTonePosition(string alertFileName, double x, double y)
         {
             AlertTonePositions[alertFileName] = new ChannelPosition { X = x, Y = y };
+            SaveSettings();
+        }
+
+        public void UpdateToneBoxPosition(string toneBoxId, double x, double y)
+        {
+            ToneBoxPositions[toneBoxId] = new ChannelPosition { X = x, Y = y };
             SaveSettings();
         }
 
