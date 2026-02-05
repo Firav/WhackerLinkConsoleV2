@@ -25,6 +25,7 @@ using System.Runtime.InteropServices;
 using System.Windows.Interop;
 using System.Windows;
 using System.Windows.Input;
+using System.Diagnostics;
 
 namespace WhackerLinkConsoleV2
 {
@@ -39,48 +40,69 @@ namespace WhackerLinkConsoleV2
     }
 
     /// <summary>
-    /// Manages global system hotkeys using Windows API
+    /// Manages global system hotkeys using low-level keyboard hooks
     /// </summary>
     public class GlobalHotKeyManager : IDisposable
     {
-        // Windows API P/Invoke declarations
-        [DllImport("user32.dll")]
-        private static extern bool RegisterHotKey(IntPtr hWnd, int id, uint fsModifiers, uint vk);
+        // Windows API P/Invoke declarations for keyboard hooks
+        [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+        private static extern IntPtr SetWindowsHookEx(int idHook, LowLevelKeyboardProc lpfn, IntPtr hMod, uint dwThreadId);
 
-        [DllImport("user32.dll")]
-        private static extern bool UnregisterHotKey(IntPtr hWnd, int id);
+        [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool UnhookWindowsHookEx(IntPtr hhk);
 
-        [DllImport("user32.dll")]
-        private static extern uint MapVirtualKey(uint uCode, uint uMapType);
+        [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+        private static extern IntPtr CallNextHookEx(IntPtr hhk, int nCode, IntPtr wParam, IntPtr lParam);
 
-        [DllImport("kernel32.dll")]
-        private static extern uint GetLastError();
+        [DllImport("kernel32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+        private static extern IntPtr GetModuleHandle(string lpModuleName);
 
         [DllImport("user32.dll")]
         private static extern short GetAsyncKeyState(int vKey);
 
-        // Modifier key constants
-        private const uint MOD_NONE = 0x0000;
-        private const uint MOD_ALT = 0x0001;
-        private const uint MOD_CONTROL = 0x0002;
-        private const uint MOD_SHIFT = 0x0004;
-        private const uint MOD_WIN = 0x0008;
+        [DllImport("user32.dll")]
+        private static extern IntPtr GetForegroundWindow();
 
-        // Message constants
-        private const int WM_HOTKEY = 0x0312;
+        // Hook constants
+        private const int WH_KEYBOARD_LL = 13;
+        private const int WM_KEYDOWN = 0x0100;
+        private const int WM_KEYUP = 0x0101;
+        private const int WM_SYSKEYDOWN = 0x0104;
+        private const int WM_SYSKEYUP = 0x0105;
 
         // Virtual key codes for modifier keys
         private const int VK_CONTROL = 0x11;
         private const int VK_SHIFT = 0x10;
         private const int VK_MENU = 0x12; // Alt key
 
+        // Delegate for low-level keyboard hook
+        private delegate IntPtr LowLevelKeyboardProc(int nCode, IntPtr wParam, IntPtr lParam);
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct KBDLLHOOKSTRUCT
+        {
+            public uint vkCode;
+            public uint scanCode;
+            public uint flags;
+            public uint time;
+            public IntPtr dwExtraInfo;
+        }
+
         private Window _window;
         private IntPtr _windowHandle;
-        private HwndSource _hwndSource;
+        private IntPtr _hookId = IntPtr.Zero;
+        private LowLevelKeyboardProc _hookCallback;
         private Dictionary<int, HotKeyInfo> _registeredHotKeys = new Dictionary<int, HotKeyInfo>();
         private Dictionary<int, bool> _hotKeyStates = new Dictionary<int, bool>(); // Track if hotkey is currently pressed
+        private Dictionary<int, int> _vkCodeToHotKeyId = new Dictionary<int, int>(); // Map VK code to the currently active hotkey ID for that key
         private int _nextHotKeyId = 1;
-        private System.Timers.Timer _keyStateTimer;
+        private HashSet<int> _currentlyPressedVKs = new HashSet<int>(); // Track currently pressed virtual keys
+        
+        /// <summary>
+        /// Gets or sets whether hotkeys should work when the application is not focused
+        /// </summary>
+        public bool WorkWhenUnfocused { get; set; } = true;
 
         public event EventHandler<HotKeyEventArgs> HotKeyPressed;
         public event EventHandler<HotKeyEventArgs> HotKeyReleased;
@@ -110,17 +132,20 @@ namespace WhackerLinkConsoleV2
                 throw new InvalidOperationException("Window handle is invalid. Ensure the window is fully initialized.");
             }
 
-            _hwndSource = HwndSource.FromHwnd(_windowHandle);
-            if (_hwndSource != null)
+            // Set up the low-level keyboard hook
+            _hookCallback = HookCallback;
+            using (Process curProcess = Process.GetCurrentProcess())
+            using (ProcessModule curModule = curProcess.MainModule)
             {
-                _hwndSource.AddHook(HwndHook);
+                _hookId = SetWindowsHookEx(WH_KEYBOARD_LL, _hookCallback, GetModuleHandle(curModule.ModuleName), 0);
             }
 
-            // Start a timer to poll key states for detecting key releases
-            _keyStateTimer = new System.Timers.Timer(50); // Poll every 50ms
-            _keyStateTimer.Elapsed += CheckKeyStates;
-            _keyStateTimer.AutoReset = true;
-            _keyStateTimer.Start();
+            if (_hookId == IntPtr.Zero)
+            {
+                throw new InvalidOperationException("Failed to install keyboard hook.");
+            }
+
+            Console.WriteLine("Low-level keyboard hook installed successfully.");
         }
 
         /// <summary>
@@ -129,21 +154,13 @@ namespace WhackerLinkConsoleV2
         /// <returns>Returns the hotkey ID if successful, -1 if failed</returns>
         public int RegisterHotKey(ModifierKeys modifier, Key key, Action onKeyDown = null, Action onKeyUp = null)
         {
-            if (_windowHandle == IntPtr.Zero)
+            if (_hookId == IntPtr.Zero)
             {
                 Console.WriteLine($"ERROR: GlobalHotKeyManager not initialized. Call Initialize() first.");
                 return -1;
             }
 
-            // Single-key hotkeys without modifiers are not recommended and may be rejected by Windows
-            if (modifier == ModifierKeys.None)
-            {
-                Console.WriteLine($"WARNING: Single-key hotkey without modifiers ({key}) may not work reliably or may be rejected by Windows.");
-                Console.WriteLine($"         It's recommended to use at least one modifier key (e.g., Ctrl+{key}).");
-            }
-
             int hotKeyId = _nextHotKeyId++;
-            uint modifierFlags = ConvertModifierKeys(modifier);
             uint vkCode = (uint)KeyInterop.VirtualKeyFromKey(key);
 
             if (vkCode == 0)
@@ -152,35 +169,21 @@ namespace WhackerLinkConsoleV2
                 return -1;
             }
 
-            if (RegisterHotKey(_windowHandle, hotKeyId, modifierFlags, vkCode))
+            var hotKeyInfo = new HotKeyInfo
             {
-                var hotKeyInfo = new HotKeyInfo
-                {
-                    Id = hotKeyId,
-                    Key = key,
-                    Modifiers = modifier,
-                    OnKeyDown = onKeyDown,
-                    OnKeyUp = onKeyUp
-                };
+                Id = hotKeyId,
+                Key = key,
+                Modifiers = modifier,
+                OnKeyDown = onKeyDown,
+                OnKeyUp = onKeyUp
+            };
 
-                _registeredHotKeys[hotKeyId] = hotKeyInfo;
-                
-                return hotKeyId;
-            }
-            else
-            {
-                uint error = GetLastError();
-                string modifierStr = modifier == ModifierKeys.None ? "(no modifiers)" : modifier.ToString();
-                Console.WriteLine($"ERROR: Failed to register hotkey {modifierStr}+{key}. Error code: {error}");
-                
-                // Common error codes
-                if (error == 1409) // ERROR_HOTKEY_ALREADY_REGISTERED
-                {
-                    Console.WriteLine($"       This hotkey is already registered by another application.");
-                }
-                
-                return -1;
-            }
+            _registeredHotKeys[hotKeyId] = hotKeyInfo;
+            
+            string modifierStr = modifier == ModifierKeys.None ? "(no modifiers)" : modifier.ToString();
+            Console.WriteLine($"Registered hotkey: {modifierStr}+{key} (ID: {hotKeyId})");
+            
+            return hotKeyId;
         }
 
         /// <summary>
@@ -194,17 +197,10 @@ namespace WhackerLinkConsoleV2
                 return false;
             }
 
-            if (UnregisterHotKey(_windowHandle, hotKeyId))
-            {
-                _registeredHotKeys.Remove(hotKeyId);
-                return true;
-            }
-            else
-            {
-                uint error = GetLastError();
-                Console.WriteLine($"ERROR: Failed to unregister hotkey ID {hotKeyId}. Error code: {error}");
-                return false;
-            }
+            _registeredHotKeys.Remove(hotKeyId);
+            _hotKeyStates.Remove(hotKeyId);
+            Console.WriteLine($"Unregistered hotkey ID {hotKeyId}");
+            return true;
         }
 
         /// <summary>
@@ -246,146 +242,137 @@ namespace WhackerLinkConsoleV2
         }
 
         /// <summary>
-        /// Converts WPF ModifierKeys to Windows API modifier flags
+        /// Low-level keyboard hook callback
         /// </summary>
-        private uint ConvertModifierKeys(ModifierKeys modifiers)
+        private IntPtr HookCallback(int nCode, IntPtr wParam, IntPtr lParam)
         {
-            uint result = MOD_NONE;
-
-            if ((modifiers & ModifierKeys.Alt) == ModifierKeys.Alt)
-                result |= MOD_ALT;
-            if ((modifiers & ModifierKeys.Control) == ModifierKeys.Control)
-                result |= MOD_CONTROL;
-            if ((modifiers & ModifierKeys.Shift) == ModifierKeys.Shift)
-                result |= MOD_SHIFT;
-            if ((modifiers & ModifierKeys.Windows) == ModifierKeys.Windows)
-                result |= MOD_WIN;
-
-            return result;
-        }
-
-        /// <summary>
-        /// Window message hook for processing hotkey messages
-        /// </summary>
-        private IntPtr HwndHook(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
-        {
-            if (msg == WM_HOTKEY)
+            if (nCode >= 0)
             {
-                int hotKeyId = wParam.ToInt32();
+                bool isKeyDown = (wParam == (IntPtr)WM_KEYDOWN || wParam == (IntPtr)WM_SYSKEYDOWN);
+                bool isKeyUp = (wParam == (IntPtr)WM_KEYUP || wParam == (IntPtr)WM_SYSKEYUP);
 
-                if (_registeredHotKeys.TryGetValue(hotKeyId, out var hotKeyInfo))
+                if (isKeyDown || isKeyUp)
                 {
-                    // Check if this hotkey is already pressed (to prevent repeated triggers)
-                    bool wasAlreadyPressed = _hotKeyStates.TryGetValue(hotKeyId, out bool isPressed) && isPressed;
+                    KBDLLHOOKSTRUCT hookStruct = (KBDLLHOOKSTRUCT)Marshal.PtrToStructure(lParam, typeof(KBDLLHOOKSTRUCT));
+                    int vkCode = (int)hookStruct.vkCode;
 
-                    if (!wasAlreadyPressed)
+                    // Track currently pressed keys
+                    if (isKeyDown)
                     {
-                        // Only trigger on first press, not repeated WM_HOTKEY messages
-                        var args = new HotKeyEventArgs
-                        {
-                            HotKeyId = hotKeyId,
-                            Key = hotKeyInfo.Key,
-                            Modifiers = hotKeyInfo.Modifiers
-                        };
-
-                        // Fire the pressed event
-                        HotKeyPressed?.Invoke(this, args);
-
-                        // Call the on-key-down callback if registered
-                        hotKeyInfo.OnKeyDown?.Invoke();
-
-                        // Mark this hotkey as pressed
-                        _hotKeyStates[hotKeyId] = true;
+                        _currentlyPressedVKs.Add(vkCode);
+                    }
+                    else if (isKeyUp)
+                    {
+                        _currentlyPressedVKs.Remove(vkCode);
                     }
 
-                    handled = true;
-                }
-            }
-
-            return IntPtr.Zero;
-        }
-
-        /// <summary>
-        /// Checks if keys are still pressed (polling for key release detection)
-        /// </summary>
-        private void CheckKeyStates(object sender, System.Timers.ElapsedEventArgs e)
-        {
-            var hotKeysToRelease = new List<int>();
-
-            foreach (var kvp in _registeredHotKeys)
-            {
-                int hotKeyId = kvp.Key;
-                var hotKeyInfo = kvp.Value;
-
-                // Check if this hotkey is currently marked as pressed
-                if (_hotKeyStates.TryGetValue(hotKeyId, out bool isPressed) && isPressed)
-                {
-                    // Check if the key combination is still held
-                    if (!IsKeyCombinationPressed(hotKeyInfo.Modifiers, hotKeyInfo.Key))
+                    // Check if we should process hotkeys (based on focus setting)
+                    if (!WorkWhenUnfocused)
                     {
-                        hotKeysToRelease.Add(hotKeyId);
+                        IntPtr foregroundWindow = GetForegroundWindow();
+                        if (foregroundWindow != _windowHandle)
+                        {
+                            // App is not focused and WorkWhenUnfocused is false, so ignore
+                            return CallNextHookEx(_hookId, nCode, wParam, lParam);
+                        }
+                    }
+
+                    if (isKeyDown)
+                    {
+                        // Get current modifier state
+                        ModifierKeys currentModifiers = GetCurrentModifiers();
+
+                        // Check all registered hotkeys for a match
+                        foreach (var kvp in _registeredHotKeys)
+                        {
+                            var hotKeyInfo = kvp.Value;
+                            int hotKeyId = kvp.Key;
+
+                            // Check if this hotkey matches the current key + modifiers
+                            int hotKeyVK = KeyInterop.VirtualKeyFromKey(hotKeyInfo.Key);
+                            
+                            if (hotKeyVK == vkCode && currentModifiers == hotKeyInfo.Modifiers)
+                            {
+                                // Check if already pressed to prevent repeats
+                                bool wasAlreadyPressed = _hotKeyStates.TryGetValue(hotKeyId, out bool isPressed) && isPressed;
+                                
+                                if (!wasAlreadyPressed)
+                                {
+                                    _hotKeyStates[hotKeyId] = true;
+                                    _vkCodeToHotKeyId[vkCode] = hotKeyId; // Track which hotkey this VK is associated with
+
+                                    // Dispatch to UI thread
+                                    _window?.Dispatcher.BeginInvoke(new Action(() =>
+                                    {
+                                        var args = new HotKeyEventArgs
+                                        {
+                                            HotKeyId = hotKeyId,
+                                            Key = hotKeyInfo.Key,
+                                            Modifiers = hotKeyInfo.Modifiers
+                                        };
+
+                                        HotKeyPressed?.Invoke(this, args);
+                                        hotKeyInfo.OnKeyDown?.Invoke();
+                                    }));
+                                }
+                                break; // Found a match, no need to check other hotkeys
+                            }
+                        }
+                    }
+                    else if (isKeyUp)
+                    {
+                        // Check if this VK code was associated with a hotkey press
+                        if (_vkCodeToHotKeyId.TryGetValue(vkCode, out int hotKeyId))
+                        {
+                            // Mark as released
+                            if (_hotKeyStates.ContainsKey(hotKeyId) && _hotKeyStates[hotKeyId])
+                            {
+                                _hotKeyStates[hotKeyId] = false;
+                                _vkCodeToHotKeyId.Remove(vkCode);
+
+                                if (_registeredHotKeys.TryGetValue(hotKeyId, out var hotKeyInfo))
+                                {
+                                    // Dispatch to UI thread
+                                    _window?.Dispatcher.BeginInvoke(new Action(() =>
+                                    {
+                                        var args = new HotKeyEventArgs
+                                        {
+                                            HotKeyId = hotKeyId,
+                                            Key = hotKeyInfo.Key,
+                                            Modifiers = hotKeyInfo.Modifiers
+                                        };
+
+                                        HotKeyReleased?.Invoke(this, args);
+                                        hotKeyInfo.OnKeyUp?.Invoke();
+                                    }));
+                                }
+                            }
+                        }
                     }
                 }
             }
 
-            // Release keys that are no longer pressed
-            foreach (var hotKeyId in hotKeysToRelease)
-            {
-                _hotKeyStates[hotKeyId] = false;
-
-                if (_registeredHotKeys.TryGetValue(hotKeyId, out var hotKeyInfo))
-                {
-                    // Call the on-key-up callback if registered
-                    _window?.Dispatcher.Invoke(() =>
-                    {
-                        hotKeyInfo.OnKeyUp?.Invoke();
-                    });
-
-                    // Fire the released event
-                    _window?.Dispatcher.Invoke(() =>
-                    {
-                        var args = new HotKeyEventArgs
-                        {
-                            HotKeyId = hotKeyId,
-                            Key = hotKeyInfo.Key,
-                            Modifiers = hotKeyInfo.Modifiers
-                        };
-                        HotKeyReleased?.Invoke(this, args);
-                    });
-                }
-            }
+            // Always call the next hook - this ensures keys work in other applications
+            return CallNextHookEx(_hookId, nCode, wParam, lParam);
         }
 
         /// <summary>
-        /// Checks if a key combination is currently pressed
+        /// Gets the current modifier keys state
         /// </summary>
-        private bool IsKeyCombinationPressed(ModifierKeys modifiers, Key key)
+        private ModifierKeys GetCurrentModifiers()
         {
-            // Check modifiers
-            if ((modifiers & ModifierKeys.Control) == ModifierKeys.Control)
-            {
-                if ((GetAsyncKeyState(VK_CONTROL) & 0x8000) == 0)
-                    return false;
-            }
+            ModifierKeys modifiers = ModifierKeys.None;
 
-            if ((modifiers & ModifierKeys.Shift) == ModifierKeys.Shift)
-            {
-                if ((GetAsyncKeyState(VK_SHIFT) & 0x8000) == 0)
-                    return false;
-            }
+            if ((GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0)
+                modifiers |= ModifierKeys.Control;
+            if ((GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0)
+                modifiers |= ModifierKeys.Shift;
+            if ((GetAsyncKeyState(VK_MENU) & 0x8000) != 0)
+                modifiers |= ModifierKeys.Alt;
+            if ((GetAsyncKeyState((int)Key.LWin) & 0x8000) != 0 || (GetAsyncKeyState((int)Key.RWin) & 0x8000) != 0)
+                modifiers |= ModifierKeys.Windows;
 
-            if ((modifiers & ModifierKeys.Alt) == ModifierKeys.Alt)
-            {
-                if ((GetAsyncKeyState(VK_MENU) & 0x8000) == 0)
-                    return false;
-            }
-
-            // Check the main key
-            int vkCode = KeyInterop.VirtualKeyFromKey(key);
-            if ((GetAsyncKeyState(vkCode) & 0x8000) == 0)
-                return false;
-
-            return true;
+            return modifiers;
         }
 
         /// <summary>
@@ -393,25 +380,20 @@ namespace WhackerLinkConsoleV2
         /// </summary>
         public void Dispose()
         {
-            // Stop the key state timer
-            if (_keyStateTimer != null)
+            // Unhook the keyboard hook
+            if (_hookId != IntPtr.Zero)
             {
-                _keyStateTimer.Stop();
-                _keyStateTimer.Dispose();
-                _keyStateTimer = null;
+                UnhookWindowsHookEx(_hookId);
+                _hookId = IntPtr.Zero;
+                Console.WriteLine("Keyboard hook uninstalled.");
             }
 
             UnregisterAllHotKeys();
 
-            if (_hwndSource != null)
-            {
-                _hwndSource.RemoveHook(HwndHook);
-                _hwndSource.Dispose();
-            }
-
             _window = null;
             _windowHandle = IntPtr.Zero;
-            _hwndSource = null;
+            _currentlyPressedVKs.Clear();
+            _vkCodeToHotKeyId.Clear();
         }
     }
 }

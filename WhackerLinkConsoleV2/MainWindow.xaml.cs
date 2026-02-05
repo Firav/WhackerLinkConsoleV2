@@ -669,6 +669,9 @@ namespace WhackerLinkConsoleV2
                     _globalHotKeyManager = new GlobalHotKeyManager();
                     _globalHotKeyManager.Initialize(this);
                 }
+                
+                // Update the WorkWhenUnfocused setting
+                _globalHotKeyManager.WorkWhenUnfocused = _settingsManager.HotkeysWorkWhenUnfocused;
 
                 // Unregister old hotkey
                 if (_globalPttHotKeyId != -1)

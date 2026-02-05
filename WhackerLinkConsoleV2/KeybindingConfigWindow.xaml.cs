@@ -73,6 +73,9 @@ namespace WhackerLinkConsoleV2
         {
             // Load global keybinding
             GlobalPttKeybindDisplay.Text = _settingsManager.GlobalPttKeybind;
+            
+            // Load hotkeys work when unfocused setting
+            HotkeysWorkWhenUnfocusedCheckbox.IsChecked = _settingsManager.HotkeysWorkWhenUnfocused;
 
             // Load codeplug identifier for both tabs
             CodeplugIdentifierText.Text = _codeplugIdentifier;
@@ -512,8 +515,12 @@ namespace WhackerLinkConsoleV2
                     MessageBox.Show("Invalid Global PTT keybinding format.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
                 }
+                
                 _settingsManager.GlobalPttKeybind = GlobalPttKeybindDisplay.Text;
             }
+            
+            // Save the hotkeys work when unfocused setting
+            _settingsManager.HotkeysWorkWhenUnfocused = HotkeysWorkWhenUnfocusedCheckbox.IsChecked ?? true;
 
             _settingsManager.SaveSettings();
 
@@ -535,6 +542,7 @@ namespace WhackerLinkConsoleV2
                         MessageBox.Show($"Invalid PTT keybinding for channel '{channelName}': {keybinding}", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
                         return;
                     }
+                    
                     _channelKeybindingManager.SetChannelKeybinding(_codeplugIdentifier, channelName, keybinding);
                 }
             }
@@ -557,6 +565,7 @@ namespace WhackerLinkConsoleV2
                         MessageBox.Show($"Invalid toggle keybinding for channel '{channelName}': {keybinding}", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
                         return;
                     }
+                    
                     _channelKeybindingManager.SetChannelToggleKeybinding(_codeplugIdentifier, channelName, keybinding);
                 }
             }
