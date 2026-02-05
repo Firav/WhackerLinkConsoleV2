@@ -50,6 +50,9 @@ namespace WhackerLinkConsoleV2
         // PTT Sound Settings
         public bool EnablePttDownSound { get; set; } = false;
         public bool EnablePttUpSound { get; set; } = false;
+        
+        // PTT Tail Delay (in milliseconds) - time to keep transmission open after PTT release
+        public int PttTailDelayMs { get; set; } = 0;
 
         public void LoadSettings()
         {
@@ -76,6 +79,7 @@ namespace WhackerLinkConsoleV2
                     HotkeysWorkWhenUnfocused = loadedSettings.HotkeysWorkWhenUnfocused;
                     EnablePttDownSound = loadedSettings.EnablePttDownSound;
                     EnablePttUpSound = loadedSettings.EnablePttUpSound;
+                    PttTailDelayMs = loadedSettings.PttTailDelayMs;
                 }
             }
             catch (Exception ex)

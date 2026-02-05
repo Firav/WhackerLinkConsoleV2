@@ -34,6 +34,7 @@ namespace WhackerLinkConsoleV2.Controls
         private readonly AudioManager _audioManager;
 
         private bool _pttState;
+        private bool _pttTailState;
         private bool _pageState;
         private bool _holdState;
         private bool _emergency;
@@ -42,6 +43,7 @@ namespace WhackerLinkConsoleV2.Controls
 
         internal LinearGradientBrush grayGradient;
         internal LinearGradientBrush redGradient;
+        internal LinearGradientBrush blueGradient;
         internal LinearGradientBrush orangeGradient;
 
         public FlashingBackgroundManager _flashingBackgroundManager;
@@ -102,6 +104,16 @@ namespace WhackerLinkConsoleV2.Controls
             set
             {
                 _pttState = value;
+                UpdatePTTColor();
+            }
+        }
+        
+        public bool PttTailState
+        {
+            get => _pttTailState;
+            set
+            {
+                _pttTailState = value;
                 UpdatePTTColor();
             }
         }
@@ -205,6 +217,15 @@ namespace WhackerLinkConsoleV2.Controls
 
             redGradient.GradientStops.Add(new GradientStop((Color)ColorConverter.ConvertFromString("#FFFF0000"), 0.485));
             redGradient.GradientStops.Add(new GradientStop((Color)ColorConverter.ConvertFromString("#FFD50000"), 0.517));
+            
+            blueGradient = new LinearGradientBrush
+            {
+                StartPoint = new Point(0.5, 0),
+                EndPoint = new Point(0.5, 1)
+            };
+
+            blueGradient.GradientStops.Add(new GradientStop((Color)ColorConverter.ConvertFromString("#FF0080FF"), 0.485));
+            blueGradient.GradientStops.Add(new GradientStop((Color)ColorConverter.ConvertFromString("#FF0066CC"), 0.517));
 
             orangeGradient = new LinearGradientBrush
             {
@@ -270,6 +291,8 @@ namespace WhackerLinkConsoleV2.Controls
 
             if (PttState)
                 PttButton.Background = redGradient;
+            else if (PttTailState)
+                PttButton.Background = blueGradient;
             else
                 PttButton.Background = grayGradient;
         }

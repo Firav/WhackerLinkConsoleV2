@@ -20,6 +20,10 @@
             <StackPanel>
                 <CheckBox x:Name="EnablePttDownSoundCheckBox" Content="Enable PTT Down Sound" Margin="0,5,0,5"/>
                 <CheckBox x:Name="EnablePttUpSoundCheckBox" Content="Enable PTT Up Sound" Margin="0,0,0,5"/>
+                <StackPanel Orientation="Horizontal" Margin="0,5,0,5">
+                    <TextBlock Text="PTT Tail Delay (ms):" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                    <TextBox x:Name="PttTailDelayTextBox" Width="80" VerticalAlignment="Center" ToolTip="Time to keep transmission open after releasing PTT (0 to disable)"/>
+                </StackPanel>
             </StackPanel>
         </GroupBox>
 

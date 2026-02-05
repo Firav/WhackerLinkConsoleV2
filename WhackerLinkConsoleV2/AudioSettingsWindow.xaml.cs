@@ -120,6 +120,7 @@ namespace WhackerLinkConsoleV2
         {
             EnablePttDownSoundCheckBox.IsChecked = _settingsManager.EnablePttDownSound;
             EnablePttUpSoundCheckBox.IsChecked = _settingsManager.EnablePttUpSound;
+            PttTailDelayTextBox.Text = _settingsManager.PttTailDelayMs.ToString();
         }
 
         private void SaveButton_Click(object sender, RoutedEventArgs e)
@@ -136,6 +137,13 @@ namespace WhackerLinkConsoleV2
             // Save PTT sound settings
             _settingsManager.EnablePttDownSound = EnablePttDownSoundCheckBox.IsChecked ?? true;
             _settingsManager.EnablePttUpSound = EnablePttUpSoundCheckBox.IsChecked ?? true;
+            
+            // Save PTT tail delay
+            if (int.TryParse(PttTailDelayTextBox.Text, out int tailDelay))
+            {
+                _settingsManager.PttTailDelayMs = Math.Max(0, tailDelay);
+            }
+            
             _settingsManager.SaveSettings();
 
             DialogResult = true;

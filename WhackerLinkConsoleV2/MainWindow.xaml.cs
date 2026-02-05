@@ -59,6 +59,7 @@ namespace WhackerLinkConsoleV2
         private bool isEditMode = false;
 
         private bool globalPttState = false;
+        private Dictionary<ChannelBox, System.Threading.Timer> _pttTailTimers = new Dictionary<ChannelBox, System.Threading.Timer>();
 
         private UIElement _draggedElement;
         private Point _startPoint;
@@ -94,7 +95,9 @@ namespace WhackerLinkConsoleV2
         private Dictionary<string, SlotStatus> systemStatuses = new Dictionary<string, SlotStatus>();
         private FneSystemManager _fneSystemManager = new FneSystemManager();
 
+#pragma warning disable CS0414 // Field is assigned but never used
         private bool cryptodev = true;
+#pragma warning restore CS0414
 
         private static HashSet<uint> usedRids = new HashSet<uint>();
 
@@ -846,7 +849,7 @@ namespace WhackerLinkConsoleV2
             });
         }
 
-        private async void ActivateGlobalPtt()
+        private void ActivateGlobalPtt()
         {
             // Play PTT down sound
             _pttSoundManager.PlayPttDownSound();
@@ -1576,14 +1579,61 @@ namespace WhackerLinkConsoleV2
             Codeplug.System system = Codeplug.GetSystemForChannel(e.ChannelName);
             Codeplug.Channel cpgChannel = Codeplug.GetChannelByName(e.ChannelName);
 
-            // Play PTT sounds based on PTT state
+            // Handle PTT down
             if (e.PttState)
             {
+                // Cancel any existing tail timer for this channel
+                if (_pttTailTimers.ContainsKey(e))
+                {
+                    _pttTailTimers[e]?.Dispose();
+                    _pttTailTimers.Remove(e);
+                }
+                
+                e.PttTailState = false;
                 _pttSoundManager.PlayPttDownSound();
             }
+            // Handle PTT up
             else
             {
-                _pttSoundManager.PlayPttUpSound();
+                // Check if PTT tail delay is configured
+                int tailDelayMs = _settingsManager.PttTailDelayMs;
+                
+                if (tailDelayMs > 0)
+                {
+                    // Enter tail state instead of immediately releasing
+                    e.PttTailState = true;
+                    
+                    // Create a timer to actually release after the delay
+                    var timer = new System.Threading.Timer(_ =>
+                    {
+                        Dispatcher.Invoke(() =>
+                        {
+                            // End tail state and release transmission
+                            e.PttTailState = false;
+                            _pttSoundManager.PlayPttUpSound();
+                            
+                            // Send the actual release message
+                            HandlePttRelease(e, system, cpgChannel);
+                            
+                            // Clean up timer
+                            if (_pttTailTimers.ContainsKey(e))
+                            {
+                                _pttTailTimers[e]?.Dispose();
+                                _pttTailTimers.Remove(e);
+                            }
+                        });
+                    }, null, tailDelayMs, System.Threading.Timeout.Infinite);
+                    
+                    _pttTailTimers[e] = timer;
+                    
+                    // Don't play PTT up sound yet or send release - that will happen after the delay
+                    return;
+                }
+                else
+                {
+                    // No tail delay, release immediately
+                    _pttSoundManager.PlayPttUpSound();
+                }
             }
 
             if (!system.IsDvm)
@@ -1604,18 +1654,10 @@ namespace WhackerLinkConsoleV2
 
                     handler.SendMessage(request.GetData());
                 }
-                else
+                else if (!e.PttTailState)
                 {
-                    GRP_VCH_RLS release = new GRP_VCH_RLS
-                    {
-                        SrcId = system.Rid,
-                        DstId = cpgChannel.Tgid,
-                        Channel = e.VoiceChannel,
-                        Site = system.Site
-                    };
-
-                    handler.SendMessage(release.GetData());
-                    e.VoiceChannel = null;
+                    // Only send release if not in tail state (tail state will call HandlePttRelease later)
+                    HandlePttRelease(e, system, cpgChannel);
                 }
             } else
             {
@@ -1636,11 +1678,41 @@ namespace WhackerLinkConsoleV2
                     Console.WriteLine("sending grant demand " + dstId);
                     handler.SendP25TDU(srcId, dstId, true);
                 }
-                else
+                else if (!e.PttTailState)
                 {
+                    // Only send release if not in tail state (tail state will call HandlePttRelease later)
                     Console.WriteLine("sending terminator " + dstId);
                     handler.SendP25TDU(srcId, dstId, false);
                 }
+            }
+        }
+        
+        private void HandlePttRelease(ChannelBox e, Codeplug.System system, Codeplug.Channel cpgChannel)
+        {
+            if (!system.IsDvm)
+            {
+                IPeer handler = _webSocketManager.GetWebSocketHandler(system.Name);
+                
+                GRP_VCH_RLS release = new GRP_VCH_RLS
+                {
+                    SrcId = system.Rid,
+                    DstId = cpgChannel.Tgid,
+                    Channel = e.VoiceChannel,
+                    Site = system.Site
+                };
+
+                handler.SendMessage(release.GetData());
+                e.VoiceChannel = null;
+            }
+            else
+            {
+                PeerSystem handler = _fneSystemManager.GetFneSystem(system.Name);
+                
+                uint srcId = UInt32.Parse(system.Rid);
+                uint dstId = UInt32.Parse(cpgChannel.Tgid);
+                
+                Console.WriteLine("sending terminator " + dstId);
+                handler.SendP25TDU(srcId, dstId, false);
             }
         }
 
