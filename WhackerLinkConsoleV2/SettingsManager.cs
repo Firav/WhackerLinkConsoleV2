@@ -47,6 +47,10 @@ namespace WhackerLinkConsoleV2
         // Controls whether hotkeys work when the application is not focused/tabbed out
         public bool HotkeysWorkWhenUnfocused { get; set; } = true;
 
+        // PTT Sound Settings
+        public bool EnablePttDownSound { get; set; } = false;
+        public bool EnablePttUpSound { get; set; } = false;
+
         public void LoadSettings()
         {
             if (!File.Exists(SettingsFilePath)) return;
@@ -70,6 +74,8 @@ namespace WhackerLinkConsoleV2
                     GlobalPttKeybind = loadedSettings.GlobalPttKeybind ?? "Ctrl+T";
                     EnableGlobalPttHotkey = loadedSettings.EnableGlobalPttHotkey;
                     HotkeysWorkWhenUnfocused = loadedSettings.HotkeysWorkWhenUnfocused;
+                    EnablePttDownSound = loadedSettings.EnablePttDownSound;
+                    EnablePttUpSound = loadedSettings.EnablePttUpSound;
                 }
             }
             catch (Exception ex)

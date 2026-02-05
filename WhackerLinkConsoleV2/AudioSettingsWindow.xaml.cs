@@ -43,6 +43,7 @@ namespace WhackerLinkConsoleV2
 
             LoadAudioDevices();
             LoadChannelOutputSettings();
+            LoadPttSoundSettings();
         }
 
         private void LoadAudioDevices()
@@ -115,6 +116,12 @@ namespace WhackerLinkConsoleV2
             return outputDevices;
         }
 
+        private void LoadPttSoundSettings()
+        {
+            EnablePttDownSoundCheckBox.IsChecked = _settingsManager.EnablePttDownSound;
+            EnablePttUpSoundCheckBox.IsChecked = _settingsManager.EnablePttUpSound;
+        }
+
         private void SaveButton_Click(object sender, RoutedEventArgs e)
         {
             int selectedInputIndex = InputDeviceComboBox.SelectedIndex;
@@ -125,6 +132,11 @@ namespace WhackerLinkConsoleV2
                 _settingsManager.UpdateChannelOutputDevice(entry.Key, entry.Value);
                 _audioManager.SetTalkgroupOutputDevice(entry.Key, entry.Value);
             }
+
+            // Save PTT sound settings
+            _settingsManager.EnablePttDownSound = EnablePttDownSoundCheckBox.IsChecked ?? true;
+            _settingsManager.EnablePttUpSound = EnablePttUpSoundCheckBox.IsChecked ?? true;
+            _settingsManager.SaveSettings();
 
             DialogResult = true;
             Close();

@@ -70,6 +70,7 @@ namespace WhackerLinkConsoleV2
         private SelectedChannelsManager _selectedChannelsManager;
         private FlashingBackgroundManager _flashingManager;
         private WaveFilePlaybackManager _emergencyAlertPlayback;
+        private PttSoundManager _pttSoundManager;
         private WebSocketManager _webSocketManager = new WebSocketManager();
         private ChannelKeybindingManager _channelKeybindingManager = new ChannelKeybindingManager();
         private GlobalHotKeyManager _globalHotKeyManager;
@@ -122,6 +123,7 @@ namespace WhackerLinkConsoleV2
             _selectedChannelsManager = new SelectedChannelsManager();
             _flashingManager = new FlashingBackgroundManager(null, ChannelsCanvas, null, this);
             _emergencyAlertPlayback = new WaveFilePlaybackManager(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "emergency.wav"));
+            _pttSoundManager = new PttSoundManager(_settingsManager);
 
             _channelHoldTimer = new System.Timers.Timer(10000);
             _channelHoldTimer.Elapsed += OnHoldTimerElapsed;
@@ -829,6 +831,9 @@ namespace WhackerLinkConsoleV2
 
         private async void ActivateGlobalPtt()
         {
+            // Play PTT down sound
+            _pttSoundManager.PlayPttDownSound();
+
             foreach (ChannelBox channel in _selectedChannelsManager.GetSelectedChannels())
             {
                 if (channel.SystemName == PLAYBACKSYS || channel.ChannelName == PLAYBACKCHNAME || channel.DstId == PLAYBACKTG)
@@ -880,6 +885,9 @@ namespace WhackerLinkConsoleV2
         private async void ReleaseGlobalPtt()
         {
             await Task.Delay(500);
+
+            // Play PTT up sound
+            _pttSoundManager.PlayPttUpSound();
 
             foreach (ChannelBox channel in _selectedChannelsManager.GetSelectedChannels())
             {
@@ -1550,6 +1558,16 @@ namespace WhackerLinkConsoleV2
 
             Codeplug.System system = Codeplug.GetSystemForChannel(e.ChannelName);
             Codeplug.Channel cpgChannel = Codeplug.GetChannelByName(e.ChannelName);
+
+            // Play PTT sounds based on PTT state
+            if (e.PttState)
+            {
+                _pttSoundManager.PlayPttDownSound();
+            }
+            else
+            {
+                _pttSoundManager.PlayPttUpSound();
+            }
 
             if (!system.IsDvm)
             {
