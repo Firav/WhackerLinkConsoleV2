@@ -130,14 +130,31 @@ namespace WhackerLinkConsoleV2
             _channelHoldTimer.AutoReset = true;
             _channelHoldTimer.Enabled = true;
 
-            _waveIn = new WaveInEvent
+            // Initialize audio input with error handling
+            try
             {
-                WaveFormat = new WaveFormat(8000, 16, 1)
-            };
-            _waveIn.DataAvailable += WaveIn_DataAvailable;
-            _waveIn.RecordingStopped += WaveIn_RecordingStopped;
+                // Check if there are any available input devices
+                if (WaveInEvent.DeviceCount > 0)
+                {
+                    _waveIn = new WaveInEvent
+                    {
+                        WaveFormat = new WaveFormat(8000, 16, 1)
+                    };
+                    _waveIn.DataAvailable += WaveIn_DataAvailable;
+                    _waveIn.RecordingStopped += WaveIn_RecordingStopped;
 
-            _waveIn.StartRecording();
+                    _waveIn.StartRecording();
+                }
+                else
+                {
+                    Console.WriteLine("Warning: No audio input devices found. Microphone input will be disabled.");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Warning: Failed to initialize audio input: {ex.Message}");
+                Console.WriteLine("Microphone input will be disabled. The application will continue without recording capability.");
+            }
 
             _audioManager = new AudioManager(_settingsManager);
 
