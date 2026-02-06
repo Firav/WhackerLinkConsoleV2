@@ -38,6 +38,7 @@ namespace WhackerLinkConsoleV2
         public List<string> AlertToneFilePaths { get; set; } = new List<string>();
         public Dictionary<string, ChannelPosition> AlertTonePositions { get; set; } = new Dictionary<string, ChannelPosition>();
         public Dictionary<string, int> ChannelOutputDevices { get; set; } = new Dictionary<string, int>();
+        public Dictionary<string, StereoChannelMode> ChannelStereoModes { get; set; } = new Dictionary<string, StereoChannelMode>();
 
         // Hotkey bindings for global PTT
         // Supports both single-key (e.g., "T", "P") and dual-key (e.g., "Ctrl+T", "Ctrl+P")
@@ -74,6 +75,7 @@ namespace WhackerLinkConsoleV2
                     AlertToneFilePaths = loadedSettings.AlertToneFilePaths ?? new List<string>();
                     AlertTonePositions = loadedSettings.AlertTonePositions ?? new Dictionary<string, ChannelPosition>();
                     ChannelOutputDevices = loadedSettings.ChannelOutputDevices ?? new Dictionary<string, int>();
+                    ChannelStereoModes = loadedSettings.ChannelStereoModes ?? new Dictionary<string, StereoChannelMode>();
                     GlobalPttKeybind = loadedSettings.GlobalPttKeybind ?? "Ctrl+T";
                     EnableGlobalPttHotkey = loadedSettings.EnableGlobalPttHotkey;
                     HotkeysWorkWhenUnfocused = loadedSettings.HotkeysWorkWhenUnfocused;
@@ -118,6 +120,12 @@ namespace WhackerLinkConsoleV2
         public void UpdateChannelOutputDevice(string channelName, int deviceIndex)
         {
             ChannelOutputDevices[channelName] = deviceIndex;
+            SaveSettings();
+        }
+
+        public void UpdateChannelStereoMode(string channelName, StereoChannelMode stereoMode)
+        {
+            ChannelStereoModes[channelName] = stereoMode;
             SaveSettings();
         }
 

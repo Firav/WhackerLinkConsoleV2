@@ -33,6 +33,7 @@ namespace WhackerLinkConsoleV2
         private readonly AudioManager _audioManager;
         private readonly List<Codeplug.Channel> _channels;
         private readonly Dictionary<string, int> _selectedOutputDevices = new Dictionary<string, int>();
+        private readonly Dictionary<string, StereoChannelMode> _selectedStereoModes = new Dictionary<string, StereoChannelMode>();
 
         public AudioSettingsWindow(SettingsManager settingsManager, AudioManager audioManager, List<Codeplug.Channel> channels)
         {
@@ -60,6 +61,7 @@ namespace WhackerLinkConsoleV2
         private void LoadChannelOutputSettings()
         {
             List<string> outputDevices = GetAudioOutputDevices();
+            List<string> stereoModes = new List<string> { "Stereo (Both)", "Left Only", "Right Only" };
 
             foreach (var channel in _channels)
             {
@@ -85,8 +87,51 @@ namespace WhackerLinkConsoleV2
                     _selectedOutputDevices[channel.Tgid] = selectedIndex;
                 };
 
+                // Add stereo channel selection label
+                TextBlock stereoLabel = new TextBlock
+                {
+                    Text = "  Stereo Channel:",
+                    Margin = new Thickness(0, 5, 0, 0),
+                    FontSize = 11
+                };
+
+                // Add stereo channel selection
+                ComboBox stereoChannelComboBox = new ComboBox
+                {
+                    Width = 350,
+                    ItemsSource = stereoModes,
+                    Margin = new Thickness(0, 2, 0, 0)
+                };
+
+                // Set initial selection based on saved settings
+                StereoChannelMode currentMode = _settingsManager.ChannelStereoModes.ContainsKey(channel.Tgid)
+                    ? _settingsManager.ChannelStereoModes[channel.Tgid]
+                    : StereoChannelMode.Stereo;
+
+                stereoChannelComboBox.SelectedIndex = currentMode switch
+                {
+                    StereoChannelMode.Stereo => 0,
+                    StereoChannelMode.LeftOnly => 1,
+                    StereoChannelMode.RightOnly => 2,
+                    _ => 0
+                };
+
+                stereoChannelComboBox.SelectionChanged += (s, e) =>
+                {
+                    StereoChannelMode mode = stereoChannelComboBox.SelectedIndex switch
+                    {
+                        0 => StereoChannelMode.Stereo,
+                        1 => StereoChannelMode.LeftOnly,
+                        2 => StereoChannelMode.RightOnly,
+                        _ => StereoChannelMode.Stereo
+                    };
+                    _selectedStereoModes[channel.Tgid] = mode;
+                };
+
                 ChannelOutputStackPanel.Children.Add(channelLabel);
                 ChannelOutputStackPanel.Children.Add(outputDeviceComboBox);
+                ChannelOutputStackPanel.Children.Add(stereoLabel);
+                ChannelOutputStackPanel.Children.Add(stereoChannelComboBox);
             }
         }
 
@@ -132,6 +177,13 @@ namespace WhackerLinkConsoleV2
             {
                 _settingsManager.UpdateChannelOutputDevice(entry.Key, entry.Value);
                 _audioManager.SetTalkgroupOutputDevice(entry.Key, entry.Value);
+            }
+
+            // Save stereo channel modes
+            foreach (var entry in _selectedStereoModes)
+            {
+                _settingsManager.UpdateChannelStereoMode(entry.Key, entry.Value);
+                _audioManager.SetTalkgroupStereoMode(entry.Key, entry.Value);
             }
 
             // Save PTT sound settings

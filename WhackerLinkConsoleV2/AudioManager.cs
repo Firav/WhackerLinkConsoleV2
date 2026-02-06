@@ -29,7 +29,7 @@ namespace WhackerLinkConsoleV2
     /// </summary>
     public class AudioManager
     {
-        private Dictionary<string, (WaveOutEvent waveOut, MixingSampleProvider mixer, BufferedWaveProvider buffer, GainSampleProvider gainProvider)> _talkgroupProviders;
+        private Dictionary<string, (WaveOutEvent waveOut, MixingSampleProvider mixer, BufferedWaveProvider buffer, GainSampleProvider gainProvider, MonoToStereoChannelProvider stereoProvider)> _talkgroupProviders;
         private SettingsManager _settingsManager;
 
         /// <summary>
@@ -38,7 +38,7 @@ namespace WhackerLinkConsoleV2
         public AudioManager(SettingsManager settingsManager)
         {
             _settingsManager = settingsManager;
-            _talkgroupProviders = new Dictionary<string, (WaveOutEvent, MixingSampleProvider, BufferedWaveProvider, GainSampleProvider)>();
+            _talkgroupProviders = new Dictionary<string, (WaveOutEvent, MixingSampleProvider, BufferedWaveProvider, GainSampleProvider, MonoToStereoChannelProvider)>();
         }
 
         /// <summary>
@@ -61,6 +61,7 @@ namespace WhackerLinkConsoleV2
         private void AddTalkgroupStream(string talkgroupId)
         {
             int deviceIndex = _settingsManager.ChannelOutputDevices.ContainsKey(talkgroupId) ? _settingsManager.ChannelOutputDevices[talkgroupId] : 0;
+            StereoChannelMode stereoMode = _settingsManager.ChannelStereoModes.ContainsKey(talkgroupId) ? _settingsManager.ChannelStereoModes[talkgroupId] : StereoChannelMode.Stereo;
 
             var waveOut = new WaveOutEvent
             {
@@ -77,17 +78,20 @@ namespace WhackerLinkConsoleV2
                 Gain = 1.0f
             };
 
-            var mixer = new MixingSampleProvider(WaveFormat.CreateIeeeFloatWaveFormat(8000, 1))
+            // Convert mono to stereo with channel routing
+            var stereoProvider = new MonoToStereoChannelProvider(gainProvider, stereoMode);
+
+            var mixer = new MixingSampleProvider(WaveFormat.CreateIeeeFloatWaveFormat(8000, 2))
             {
                 ReadFully = true
             };
 
-            mixer.AddMixerInput(gainProvider);
+            mixer.AddMixerInput(stereoProvider);
 
             waveOut.Init(mixer);
             waveOut.Play();
 
-            _talkgroupProviders[talkgroupId] = (waveOut, mixer, bufferProvider, gainProvider);
+            _talkgroupProviders[talkgroupId] = (waveOut, mixer, bufferProvider, gainProvider, stereoProvider);
         }
 
         /// <summary>
@@ -121,6 +125,21 @@ namespace WhackerLinkConsoleV2
 
             _settingsManager.UpdateChannelOutputDevice(talkgroupId, deviceIndex);
             AddTalkgroupStream(talkgroupId);
+        }
+
+        /// <summary>
+        /// Set stereo channel mode for a talkgroup
+        /// </summary>
+        /// <param name="talkgroupId"></param>
+        /// <param name="stereoMode"></param>
+        public void SetTalkgroupStereoMode(string talkgroupId, StereoChannelMode stereoMode)
+        {
+            if (_talkgroupProviders.ContainsKey(talkgroupId))
+            {
+                _talkgroupProviders[talkgroupId].stereoProvider.ChannelMode = stereoMode;
+            }
+            
+            _settingsManager.UpdateChannelStereoMode(talkgroupId, stereoMode);
         }
 
         /// <summary>
