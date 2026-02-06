@@ -51,8 +51,6 @@ namespace WhackerLinkConsoleV2
             _pttDownSoundPath = Path.Combine(audioDirectory, "ptt_down.wav");
             _pttUpSoundPath = Path.Combine(audioDirectory, "ptt_up.wav");
 
-            // Ensure sound files exist
-            PttSoundGenerator.GeneratePttSounds(audioDirectory);
         }
 
         /// <summary>
