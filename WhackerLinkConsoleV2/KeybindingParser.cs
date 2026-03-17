@@ -30,38 +30,83 @@ namespace WhackerLinkConsoleV2
     /// </summary>
     public static class KeybindingParser
     {
-    /// <summary>
-    /// Parses a keybinding string like "Ctrl+Alt+P" into ModifierKeys and Key
-    /// </summary>
-    /// <returns>Returns true if parsing was successful</returns>
-    public static bool TryParseKeybinding(string keybindingString, out ModifierKeys modifiers, out Key key)
-    {
-        modifiers = ModifierKeys.None;
-        key = Key.None;
-
-        if (string.IsNullOrWhiteSpace(keybindingString))
+        /// <summary>
+        /// Parses a keybinding string like "Ctrl+Alt+P" into ModifierKeys and Key
+        /// </summary>
+        /// <returns>Returns true if parsing was successful</returns>
+        public static bool TryParseKeybinding(string keybindingString, out ModifierKeys modifiers, out Key key)
         {
-            Console.WriteLine("ERROR: Keybinding string is null or empty");
-            return false;
-        }
+            modifiers = ModifierKeys.None;
+            key = Key.None;
 
-        try
-        {
-            var parts = keybindingString.Split('+');
-
-            if (parts.Length == 0)
+            if (string.IsNullOrWhiteSpace(keybindingString))
             {
-                Console.WriteLine($"ERROR: Invalid keybinding format: '{keybindingString}'");
+                Console.WriteLine("ERROR: Keybinding string is null or empty");
                 return false;
             }
 
-            // Handle single-key keybindings (e.g., "T", "P", "F1")
-            if (parts.Length == 1)
+            try
             {
-                string keyString = parts[0].Trim();
-                if (!Enum.TryParse<Key>(keyString, true, out key))
+                var parts = keybindingString.Split('+');
+
+                if (parts.Length == 0)
                 {
-                    Console.WriteLine($"ERROR: Unknown key: '{keyString}'");
+                    Console.WriteLine($"ERROR: Invalid keybinding format: '{keybindingString}'");
+                    return false;
+                }
+
+                // Handle single-key keybindings (e.g., "T", "P", "F1")
+                if (parts.Length == 1)
+                {
+                    string keyString = parts[0].Trim();
+                    if (!Enum.TryParse<Key>(keyString, true, out key))
+                    {
+                        Console.WriteLine($"ERROR: Unknown key: '{keyString}'");
+                        return false;
+                    }
+
+                    if (key == Key.None)
+                    {
+                        Console.WriteLine($"ERROR: Key cannot be None");
+                        return false;
+                    }
+
+                    return true;
+                }
+
+                // Handle multi-key keybindings (e.g., "Ctrl+T", "Ctrl+Alt+P")
+                // Parse modifiers from all but the last part
+                for (int i = 0; i < parts.Length - 1; i++)
+                {
+                    string part = parts[i].Trim().ToLower();
+
+                    switch (part)
+                    {
+                        case "ctrl":
+                        case "control":
+                            modifiers |= ModifierKeys.Control;
+                            break;
+                        case "alt":
+                            modifiers |= ModifierKeys.Alt;
+                            break;
+                        case "shift":
+                            modifiers |= ModifierKeys.Shift;
+                            break;
+                        case "win":
+                        case "windows":
+                            modifiers |= ModifierKeys.Windows;
+                            break;
+                        default:
+                            Console.WriteLine($"ERROR: Unknown modifier key: '{part}'");
+                            return false;
+                    }
+                }
+
+                // Parse the main key from the last part
+                string keyStr = parts[parts.Length - 1].Trim();
+                if (!Enum.TryParse<Key>(keyStr, true, out key))
+                {
+                    Console.WriteLine($"ERROR: Unknown key: '{keyStr}'");
                     return false;
                 }
 
@@ -73,57 +118,14 @@ namespace WhackerLinkConsoleV2
 
                 return true;
             }
-
-            // Handle multi-key keybindings (e.g., "Ctrl+T", "Ctrl+Alt+P")
-            // Parse modifiers from all but the last part
-            for (int i = 0; i < parts.Length - 1; i++)
+            catch (Exception ex)
             {
-                string part = parts[i].Trim().ToLower();
-
-                switch (part)
-                {
-                    case "ctrl":
-                    case "control":
-                        modifiers |= ModifierKeys.Control;
-                        break;
-                    case "alt":
-                        modifiers |= ModifierKeys.Alt;
-                        break;
-                    case "shift":
-                        modifiers |= ModifierKeys.Shift;
-                        break;
-                    case "win":
-                    case "windows":
-                        modifiers |= ModifierKeys.Windows;
-                        break;
-                    default:
-                        Console.WriteLine($"ERROR: Unknown modifier key: '{part}'");
-                        return false;
-                }
-            }
-
-            // Parse the main key from the last part
-            string keyStr = parts[parts.Length - 1].Trim();
-            if (!Enum.TryParse<Key>(keyStr, true, out key))
-            {
-                Console.WriteLine($"ERROR: Unknown key: '{keyStr}'");
+                Console.WriteLine($"ERROR: Exception parsing keybinding '{keybindingString}': {ex.Message}");
                 return false;
             }
-
-            if (key == Key.None)
-            {
-                Console.WriteLine($"ERROR: Key cannot be None");
-                return false;
-            }
-
-            return true;
         }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"ERROR: Exception parsing keybinding '{keybindingString}': {ex.Message}");
-            return false;
-        }
-    }        /// <summary>
+
+        /// <summary>
         /// Converts ModifierKeys and Key back to a keybinding string
         /// </summary>
         public static string KeybindingToString(ModifierKeys modifiers, Key key)
