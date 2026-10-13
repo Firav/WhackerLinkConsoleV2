@@ -22,6 +22,8 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Media;
 
 namespace WhackerLinkConsoleV2.Controls
 {
@@ -51,6 +53,11 @@ namespace WhackerLinkConsoleV2.Controls
         }
 
         /// <summary>
+        /// Raised when the queue toggle button on the tone is clicked
+        /// </summary>
+        public event Action<QCTone> OnQueueToggled;
+
+        /// <summary>
         /// Creates an instance of <see cref="QCTone"/>
         /// </summary>
         /// <param name="toneAFrequency"></param>
@@ -62,8 +69,47 @@ namespace WhackerLinkConsoleV2.Controls
             ToneAFrequency = toneAFrequency;
             ToneBFrequency = toneBFrequency;
 
+            // the codeplug is authoritative on the tone name, block inline renaming
+            if (FindName("ToneNameBox") is TextBox toneNameBox)
+            {
+                toneNameBox.IsReadOnly = true;
+                toneNameBox.Focusable = false;
+            }
+
+            // show the queue toggle button, only QC tones can be queued
+            if (FindName("QueueToggleButton") is Button queueToggleButton)
+            {
+                queueToggleButton.Visibility = Visibility.Visible;
+                queueToggleButton.Click += (sender, e) => OnQueueToggled?.Invoke(this);
+            }
+
             ToolTip = string.Format(CultureInfo.InvariantCulture,
-                "QC2 tones, A: {0:F1} Hz, B: {1:F1} Hz", toneAFrequency, toneBFrequency);
+                "QC2 tones, A: {0:F1} Hz, B: {1:F1} Hz\nClick the + to toggle in the play queue", toneAFrequency, toneBFrequency);
+        }
+
+        /// <summary>
+        /// Sets the queued visual state of the tone
+        /// </summary>
+        /// <param name="queued"></param>
+        public void SetQueued(bool queued)
+        {
+            Button queueToggleButton = FindName("QueueToggleButton") as Button;
+
+            if (queueToggleButton == null)
+                return;
+
+            if (queued)
+            {
+                queueToggleButton.Content = "✓";
+                queueToggleButton.Background = new SolidColorBrush(Color.FromRgb(0x00, 0xBC, 0x48));
+                queueToggleButton.Foreground = Brushes.White;
+            }
+            else
+            {
+                queueToggleButton.Content = "+";
+                queueToggleButton.ClearValue(BackgroundProperty);
+                queueToggleButton.ClearValue(ForegroundProperty);
+            }
         }
     }
 

@@ -58,6 +58,7 @@ namespace WhackerLinkConsoleV2
     {
         public Codeplug Codeplug { get; set; }
         private List<QCTonePair> _qcTonePairs = new List<QCTonePair>();
+        private List<QCTonePair> _qcToneQueuePairs = new List<QCTonePair>();
         private bool isEditMode = false;
 
         private bool globalPttState = false;
@@ -526,6 +527,10 @@ namespace WhackerLinkConsoleV2
                         };
 
                         qcTone.OnAlertTone += SendAlertTone;
+                        qcTone.OnQueueToggled += QCQueue_Toggled;
+
+                        // restore queued visual state if the tone is already in the play queue
+                        qcTone.SetQueued(_qcToneQueuePairs.Any(p => QCTonePair.BuildPositionKey(p.A, p.B, p.Name) == qcTone.PositionKey));
 
                         if (_settingsManager.AlertTonePositions.TryGetValue(qcTone.PositionKey, out var qcPosition))
                         {
@@ -554,6 +559,8 @@ namespace WhackerLinkConsoleV2
                     AdjustCanvasHeight();
                 }
             }
+
+            UpdateQCQueuePlayButton();
 
             playbackChannelBox = new ChannelBox(_selectedChannelsManager, _audioManager, PLAYBACKCHNAME, PLAYBACKSYS, PLAYBACKTG);
 
@@ -1237,6 +1244,81 @@ namespace WhackerLinkConsoleV2
                         channel.PageSelectButton.Background = channel.grayGradient;
                     });
                 }
+            }
+        }
+
+        /// <summary>
+        /// Toggles a QC tone in/out of the queued play list
+        /// </summary>
+        /// <param name="qcTone"></param>
+        private void QCQueue_Toggled(QCTone qcTone)
+        {
+            if (qcTone == null)
+                return;
+
+            QCTonePair queuedPair = _qcToneQueuePairs.FirstOrDefault(p => QCTonePair.BuildPositionKey(p.A, p.B, p.Name) == qcTone.PositionKey);
+
+            if (queuedPair != null)
+            {
+                _qcToneQueuePairs.Remove(queuedPair);
+                qcTone.SetQueued(false);
+            }
+            else
+            {
+                _qcToneQueuePairs.Add(new QCTonePair { A = qcTone.ToneAFrequency, B = qcTone.ToneBFrequency, Name = qcTone.AlertFileName });
+                qcTone.SetQueued(true);
+            }
+
+            UpdateQCQueuePlayButton();
+        }
+
+        /// <summary>
+        /// Updates the play QC queue toolbar button label and state
+        /// </summary>
+        private void UpdateQCQueuePlayButton()
+        {
+            QCQueuePlayButton.Content = $"QC Queue ({_qcToneQueuePairs.Count})";
+            QCQueuePlayButton.IsEnabled = _qcToneQueuePairs.Count > 0;
+
+            if (_qcToneQueuePairs.Count > 0)
+            {
+                QCQueuePlayButton.Background = new SolidColorBrush(Color.FromRgb(0x00, 0xBC, 0x48));
+                QCQueuePlayButton.Foreground = Brushes.White;
+            }
+            else
+            {
+                QCQueuePlayButton.ClearValue(BackgroundProperty);
+                QCQueuePlayButton.ClearValue(ForegroundProperty);
+            }
+        }
+
+        /// <summary>
+        /// Sends all queued QC2 tones consecutively over the selected page enabled channels, then clears the queue
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private async void PlayQCQueue_Click(object sender, RoutedEventArgs e)
+        {
+            if (_qcToneQueuePairs.Count == 0)
+                return;
+
+            QCQueuePlayButton.IsEnabled = false;
+
+            try
+            {
+                foreach (QCTonePair pair in _qcToneQueuePairs.ToList())
+                {
+                    await SendQC2ToneAsync(pair.A, pair.B);
+                }
+            }
+            finally
+            {
+                _qcToneQueuePairs.Clear();
+
+                UpdateQCQueuePlayButton();
+
+                foreach (QCTone qcTone in ChannelsCanvas.Children.OfType<QCTone>())
+                    qcTone.SetQueued(false);
             }
         }
 
