@@ -519,6 +519,15 @@ namespace WhackerLinkConsoleV2
                 // QC2 tone widgets built from the codeplug qcList section
                 if (_qcTonePairs != null && _qcTonePairs.Count > 0)
                 {
+                    // spawn the qc tone flow on the line after the last
+                    // channel row so fresh codeplug loads never overlay
+                    // the channel boxes
+                    if (offsetX != 20)
+                    {
+                        offsetX = 20;
+                        offsetY += 106;
+                    }
+
                     foreach (var qcPair in _qcTonePairs)
                     {
                         var qcTone = new QCTone(qcPair.A, qcPair.B, qcPair.Name)
@@ -554,6 +563,14 @@ namespace WhackerLinkConsoleV2
                             offsetX = 20;
                             offsetY += 60;
                         }
+                    }
+
+                    // snap the flow back onto a fresh channel line so the
+                    // playback box spawns inline below the qc tone rows
+                    if (offsetX != 20)
+                    {
+                        offsetX = 20;
+                        offsetY += 106;
                     }
 
                     AdjustCanvasHeight();
