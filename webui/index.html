@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WhackerLinkConsoleV2 - Web Edition</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <link rel="icon" type="image/png" href="assets/whackerlink-logo-icon.png">
+</head>
+<body>
+    <div id="app">
+        <!-- Top Menu Bar -->
+        <nav class="top-menu">
+            <ul class="menu-list">
+                <li class="menu-item">
+                    <span class="menu-label">File</span>
+                    <ul class="submenu">
+                        <li class="submenu-item" data-action="open-codeplug">Open Codeplug</li>
+                    </ul>
+                </li>
+                <li class="menu-item">
+                    <span class="menu-label">Edit</span>
+                    <ul class="submenu">
+                        <li class="submenu-item" data-action="audio-settings">Audio Settings</li>
+                        <li class="submenu-item" data-action="keybindings">Configure Keybindings</li>
+                        <li class="submenu-item" data-action="toggle-edit-mode">Enable Edit Mode</li>
+                        <li class="submenu-item" data-action="select-widgets">Select Widgets to Display</li>
+                        <li class="submenu-item" data-action="reset-settings">Reset Settings</li>
+                        <li class="menu-divider"></li>
+                        <li class="submenu-item" data-action="add-alert-tone">Add Alert Tone</li>
+                    </ul>
+                </li>
+                <li class="menu-item">
+                    <span class="menu-label">Page</span>
+                    <ul class="submenu">
+                        <li class="submenu-item" data-action="p25-page">P25 Page</li>
+                        <li class="submenu-item" data-action="manual-page">Manual QC2</li>
+                    </ul>
+                </li>
+            </ul>
+        </nav>
+
+        <!-- Toolbar Row -->
+        <div class="toolbar-row">
+            <!-- Logo -->
+            <img src="assets/WhackerLinkLogoV4.png" alt="WhackerLink Logo" class="toolbar-logo" draggable="false">
+
+            <!-- Alert Buttons -->
+            <button class="toolbar-btn" id="btnAlert1" title="Alert Tone 1">
+                <span class="btn-text">1</span>
+                <img src="assets/alerttone2.png" alt="" class="btn-icon" draggable="false">
+            </button>
+            
+            <button class="toolbar-btn" id="btnAlert2" title="Alert Tone 2">
+                <span class="btn-text">2</span>
+                <img src="assets/alerttone2.png" alt="" class="btn-icon" draggable="false">
+            </button>
+            
+            <button class="toolbar-btn" id="btnAlert3" title="Alert Tone 3">
+                <span class="btn-text">3</span>
+                <img src="assets/alerttone2.png" alt="" class="btn-icon" draggable="false">
+            </button>
+
+            <!-- Global PTT Button -->
+            <button class="toolbar-btn toolbar-btn-wide" id="btnGlobalPtt" title="Global PTT">
+                <img src="assets/instantptt.png" alt="" class="btn-icon" draggable="false">
+                <span class="btn-text">PTT</span>
+            </button>
+
+            <!-- Clear Emergency Button -->
+            <button class="toolbar-btn" id="btnClearEmergency" title="Clear Emergency">
+                <img src="assets/clearemerg.png" alt="" class="btn-icon" draggable="false">
+            </button>
+
+            <!-- Open Codeplug Button -->
+            <button class="toolbar-btn" id="btnOpenCodeplug" title="Open Codeplug">
+                <img src="assets/config2.png" alt="" class="btn-icon" draggable="false">
+            </button>
+
+            <!-- P25 Page Button -->
+            <button class="toolbar-btn" id="btnP25Page" title="P25 Page">
+                <img src="assets/page.png" alt="" class="btn-icon" draggable="false">
+            </button>
+
+            <!-- Select All Button -->
+            <button class="toolbar-btn" id="btnSelectAll" title="Select All">
+                <span class="btn-text">Select All</span>
+            </button>
+
+            <!-- Key Stats Button -->
+            <button class="toolbar-btn" id="btnKeyStats" title="Key Status">
+                <span class="btn-text">Key Stats</span>
+            </button>
+
+            <!-- Call History Button -->
+            <button class="toolbar-btn" id="btnCallHistory" title="Call History">
+                <span class="btn-text">Call Hist</span>
+            </button>
+
+            <!-- Audio Settings Button -->
+            <button class="toolbar-btn" id="btnAudioSettings" title="Audio Settings">
+                <img src="assets/audio.png" alt="" class="btn-icon" draggable="false">
+            </button>
+        </div>
+
+        <!-- Main Content Area (Scrollable Canvas) -->
+        <div id="main-content" class="content-area">
+            <div id="channels-canvas" class="canvas-container">
+                <!-- Widgets will be dynamically added here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Dialog Windows (Hidden by default) -->
+    <div id="dialogs-container">
+        <!-- Audio Settings Dialog -->
+        <div id="audio-settings-dialog" class="dialog-window hidden">
+            <div class="dialog-header">
+                <h2>Audio Settings</h2>
+                <button class="dialog-close" data-close="audio-settings-dialog">&times;</button>
+            </div>
+            <div class="dialog-content">
+                <div class="form-group">
+                    <label>Global Audio Input Device</label>
+                    <select id="input-device-select" class="form-select"></select>
+                </div>
+
+                <div class="form-group">
+                    <h3>PTT Sounds</h3>
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="enable-ptt-down-sound" checked>
+                        Enable PTT Down Sound
+                    </label>
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="enable-ptt-up-sound" checked>
+                        Enable PTT Up Sound
+                    </label>
+                    <div class="ptt-delay-row">
+                        <label>PTT Tail Delay (ms):</label>
+                        <input type="number" id="ptt-tail-delay" value="0" min="0" max="5000">
+                        <span class="tooltip" title="Time to keep transmission open after releasing PTT (0 to disable)">?</span>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <h3>Per-Channel Output Devices</h3>
+                    <div id="channel-output-devices" class="channel-devices-container"></div>
+                </div>
+
+                <div class="dialog-footer">
+                    <button class="btn-primary" id="audio-settings-save">Save</button>
+                    <button class="btn-secondary" id="audio-settings-cancel">Cancel</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Digital Page Dialog -->
+        <div id="digital-page-dialog" class="dialog-window hidden">
+            <div class="dialog-header">
+                <h2>P25 Page</h2>
+                <button class="dialog-close" data-close="digital-page-dialog">&times;</button>
+            </div>
+            <div class="dialog-content">
+                <div class="form-group">
+                    <label>System:</label>
+                    <select id="page-system-select" class="form-select"></select>
+                </div>
+                <div class="form-group">
+                    <label>Dst ID:</label>
+                    <input type="text" id="page-dst-id" class="form-input" maxlength="12">
+                </div>
+            </div>
+            <div class="dialog-footer">
+                <button class="btn-primary" id="page-send-btn">Send</button>
+            </div>
+        </div>
+
+        <!-- Manual Page Dialog -->
+        <div id="manual-page-dialog" class="dialog-window hidden">
+            <div class="dialog-header">
+                <h2>Manual QC2 Page</h2>
+                <button class="dialog-close" data-close="manual-page-dialog">&times;</button>
+            </div>
+            <div class="dialog-content">
+                <div class="form-group">
+                    <label>A Tone:</label>
+                    <input type="text" id="manual-tone-a" class="form-input">
+                </div>
+                <div class="form-group">
+                    <label>B Tone:</label>
+                    <input type="text" id="manual-tone-b" class="form-input">
+                </div>
+            </div>
+            <div class="dialog-footer">
+                <button class="btn-primary" id="manual-page-send-btn">Send</button>
+            </div>
+        </div>
+
+        <!-- Key Status Dialog -->
+        <div id="key-status-dialog" class="dialog-window hidden">
+            <div class="dialog-header">
+                <h2>Key Status Window</h2>
+                <button class="dialog-close" data-close="key-status-dialog">&times;</button>
+            </div>
+            <div class="dialog-content">
+                <table id="key-status-table" class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Channel Name</th>
+                            <th>Algorithm ID</th>
+                            <th>Key ID</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Call History Dialog -->
+        <div id="call-history-dialog" class="dialog-window hidden">
+            <div class="dialog-header">
+                <h2>Call History</h2>
+                <button class="dialog-close" data-close="call-history-dialog">&times;</button>
+            </div>
+            <div class="dialog-content">
+                <table id="call-history-table" class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Channel</th>
+                            <th>SRC ID</th>
+                            <th>DST ID</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Widget Selection Dialog -->
+        <div id="widget-selection-dialog" class="dialog-window hidden">
+            <div class="dialog-header">
+                <h2>Select Widgets</h2>
+                <button class="dialog-close" data-close="widget-selection-dialog">&times;</button>
+            </div>
+            <div class="dialog-content">
+                <label class="checkbox-label">
+                    <input type="checkbox" id="show-system-status" checked>
+                    System Status
+                </label>
+                <label class="checkbox-label">
+                    <input type="checkbox" id="show-channels" checked>
+                    Channels
+                </label>
+                <label class="checkbox-label">
+                    <input type="checkbox" id="show-alert-tones" checked>
+                    Alert Tones
+                </label>
+            </div>
+            <div class="dialog-footer">
+                <button class="btn-primary" id="widget-selection-apply">Apply</button>
+            </div>
+        </div>
+
+        <!-- Keybinding Config Dialog -->
+        <div id="keybinding-config-dialog" class="dialog-window hidden">
+            <div class="dialog-header">
+                <h2>Keybinding Configuration</h2>
+                <button class="dialog-close" data-close="keybinding-config-dialog">&times;</button>
+            </div>
+            <div class="dialog-content">
+                <div class="form-group">
+                    <h3>Global PTT Keybind</h3>
+                    <div class="keybind-display-row">
+                        <input type="text" id="global-ptt-display" class="form-input keybind-display" readonly value="Ctrl+T">
+                        <button id="record-global-ptt-btn" class="btn-primary">Record</button>
+                        <button id="clear-global-ptt-btn" class="btn-secondary">Clear</button>
+                    </div>
+                    <label class="checkbox-label" style="margin-top: 10px;">
+                        <input type="checkbox" id="hotkeys-unfocused" checked>
+                        Allow hotkeys to work when application is not focused (tabbed out)
+                    </label>
+                </div>
+
+                <div class="tabs-container">
+                    <div class="tabs">
+                        <button class="tab-btn active" data-tab="ptt-keybindings">PTT Keybindings</button>
+                        <button class="tab-btn" data-tab="channel-toggle">Channel Toggle</button>
+                    </div>
+                    <div class="tab-content" id="ptt-keybindings-content">
+                        <p id="ptt-keybindings-info">No codeplug loaded</p>
+                        <div id="channel-ptt-keybindings" class="channel-keybindings"></div>
+                    </div>
+                    <div class="tab-content hidden" id="channel-toggle-content">
+                        <p id="channel-toggle-info">No codeplug loaded</p>
+                        <div id="channel-toggle-keybindings" class="channel-keybindings"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="dialog-footer">
+                <button class="btn-primary" id="keybinding-apply">Apply</button>
+                <button class="btn-secondary" id="keybinding-close">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- File Input (Hidden) -->
+    <input type="file" id="file-input-codeplug" accept=".yml" class="hidden-input">
+    <input type="file" id="file-input-alert-tone" accept=".wav" class="hidden-input">
+
+    <!-- Scripts -->
+    <script src="js/app.js"></script>
+</body>
+</html>

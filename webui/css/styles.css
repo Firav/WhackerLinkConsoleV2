@@ -1,0 +1,863 @@
+/* ================================================
+   WhackerLinkConsoleV2 - Web Edition Styles
+   ================================================ */
+
+/* ================================================
+   CSS Reset & Base Styles
+   ================================================ */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: Arial, sans-serif;
+    background-color: #F2F2F2;
+    color: #333;
+    font-size: 14px;
+    overflow: hidden;
+    height: 100vh;
+    width: 100vw;
+}
+
+/* ================================================
+   Layout Containers
+   ================================================ */
+#app {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    width: 100%;
+}
+
+/* ================================================
+   Top Menu Bar
+   ================================================ */
+.top-menu {
+    background: white;
+    height: 30px;
+    border-bottom: 1px solid #B7B7B7;
+    padding: 0 5px;
+    display: flex;
+    align-items: center;
+}
+
+.menu-list {
+    list-style: none;
+    display: flex;
+    gap: 5px;
+}
+
+.menu-item {
+    position: relative;
+    display: inline-block;
+}
+
+.menu-label {
+    padding: 5px 12px;
+    cursor: pointer;
+    font-size: 13px;
+    color: #333;
+    border-radius: 3px;
+    transition: background-color 0.15s;
+}
+
+.menu-label:hover {
+    background-color: #E0E0E0;
+}
+
+.submenu {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    background: white;
+    border: 1px solid #B7B7B7;
+    border-radius: 3px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    min-width: 180px;
+    padding: 4px;
+    display: none;
+    z-index: 1000;
+}
+
+.submenu.show {
+    display: block;
+}
+
+.submenu-item {
+    padding: 5px 12px;
+    cursor: pointer;
+    font-size: 13px;
+    border-radius: 2px;
+    transition: background-color 0.15s;
+}
+
+.submenu-item:hover {
+    background-color: #E3F2FD;
+}
+
+.menu-divider {
+    height: 1px;
+    background-color: #E0E0E0;
+    margin: 4px 0;
+}
+
+/* ================================================
+   Toolbar Row
+   ================================================ */
+.toolbar-row {
+    display: flex;
+    align-items: center;
+    padding: 5px 10px;
+    gap: 5px;
+    background: linear-gradient(to bottom, #F0F0F0 48.5%, #DBDBDB 51.7%);
+    border-bottom: 1px solid #B7B7B7;
+    height: 52px;
+    flex-wrap: wrap;
+}
+
+.toolbar-btn {
+    height: 46px;
+    min-width: 45px;
+    padding: 0;
+    border: 1px solid #C1C1C1;
+    border-radius: 2px;
+    background: linear-gradient(to bottom, #F0F0F0 48.5%, #DBDBDB 51.7%);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    transition: all 0.15s;
+    position: relative;
+    overflow: hidden;
+}
+
+.toolbar-btn:hover {
+    background: linear-gradient(to bottom, #E5E5E5 48.5%, #D1D1D1 51.7%);
+}
+
+.toolbar-btn:active {
+    transform: translateY(1px);
+}
+
+.toolbar-btn-wide {
+    min-width: 82px;
+}
+
+.btn-text {
+    font-size: 10px;
+    font-weight: normal;
+    z-index: 2;
+}
+
+.btn-icon {
+    height: 37px;
+    width: 37px;
+    pointer-events: none;
+}
+
+.toolbar-logo {
+    height: 50px;
+    object-fit: contain;
+}
+
+/* ================================================
+   Content Area
+   ================================================ */
+.content-area {
+    flex: 1;
+    overflow: auto;
+    background-color: #F2F2F2;
+    position: relative;
+}
+
+.canvas-container {
+    min-height: 100%;
+    padding: 20px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0;
+    position: relative;
+}
+
+/* ================================================
+    Widget Styles - ChannelBox
+    ================================================ */
+.channel-widget {
+    width: 220px;
+    height: 100px;
+    background-color: #0B004B;
+    border: 1px solid #808080;
+    border-radius: 0;
+    position: relative;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    transition: background-color 0.15s;
+}
+
+.channel-widget.selected {
+    background-color: #0B004B;
+}
+
+.channel-widget.unselected {
+    background-color: #444444;
+}
+
+.channel-widget.emergency {
+    animation: emergency-flash 1s infinite;
+}
+
+@keyframes emergency-flash {
+    0%, 100% { background-color: #0B004B; }
+    50% { background-color: #FF0000; }
+}
+
+.channel-widget-content {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    padding: 0;
+    position: relative;
+    width: 100%;
+}
+
+/* PTT button - positioned at left of channel box */
+.ptt-button {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 42px;
+    height: 46px;
+    border: none;
+    border-radius: 2px;
+    background: #FF8800;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+    padding: 0;
+}
+
+.ptt-button img {
+    width: 39px;
+    height: 40px;
+    pointer-events: none;
+}
+
+.ptt-button.active {
+    background: linear-gradient(to bottom, #FF0000 48.5%, #D50000 51.7%);
+}
+
+.ptt-button.tail {
+    background: linear-gradient(to bottom, #0080FF 48.5%, #0066CC 51.7%);
+}
+
+.ptt-button.page {
+    background: linear-gradient(to bottom, #FFAF00 48.5%, #EEA400 51.7%);
+}
+
+/* Content area - positioned to the right of PTT button */
+.channel-widget-content-inner {
+    margin-left: 42px;
+    padding: 5px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+.channel-header {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    margin-bottom: 5px;
+}
+
+.channel-name {
+    color: white;
+    font-weight: bold;
+    font-size: 12px;
+    margin-bottom: 2px;
+}
+
+.last-src-id {
+    color: gold;
+    font-size: 10px;
+    margin-bottom: 2px;
+}
+
+.system-name {
+    color: gold;
+    font-size: 10px;
+}
+
+.volume-control {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 5px;
+}
+
+.volume-slider {
+    flex: 1;
+    height: 4px;
+    -webkit-appearance: none;
+    background: #808080;
+    border-radius: 2px;
+    outline: none;
+}
+
+.volume-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 10px;
+    height: 20px;
+    background: #404040;
+    cursor: pointer;
+    border-radius: 0;
+}
+
+.channel-actions {
+    display: flex;
+    gap: 5px;
+    align-items: center;
+}
+
+.page-select-btn, .channel-marker-btn {
+    width: 40px;
+    height: 40px;
+    border: none;
+    border-radius: 2px;
+    background: linear-gradient(to bottom, #F0F0F0 48.5%, #DBDBDB 51.7%);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    padding: 0;
+}
+
+.page-select-btn img, .channel-marker-btn img {
+    width: 39px;
+    height: 39px;
+    pointer-events: none;
+}
+
+.channel-marker-btn img {
+    width: 36px;
+    height: 40px;
+}
+
+/* ================================================
+   Widget Styles - SystemStatusBox
+   ================================================ */
+.system-status-widget {
+    width: 105px;
+    height: 55px;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #0B004B;
+    border: 1px solid #808080;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+.system-status-content {
+    padding: 10px;
+    text-align: center;
+    width: 100%;
+}
+
+.system-name-display {
+    color: white;
+    font-weight: bold;
+    font-size: 12px;
+    margin-bottom: 4px;
+}
+
+.connection-state {
+    color: gold;
+    font-size: 10px;
+}
+
+.system-status-widget.connected {
+    background: #00BC48;
+}
+
+.system-status-widget.disconnected {
+    background: red;
+}
+
+/* ================================================
+   Widget Styles - AlertTone
+   ================================================ */
+.alert-tone-widget {
+    width: 105px;
+    height: 55px;
+    position: relative;
+    background: #848484;
+    border: 1px solid #808080;
+    border-radius: 1px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.alert-tone-content {
+    width: 100%;
+    height: 100%;
+    background: #00BC48;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 1px;
+}
+
+.alert-tone-name {
+    color: white;
+    font-weight: bold;
+    font-size: 10px;
+    text-align: center;
+    margin-top: 4px;
+    width: 100%;
+    background: transparent;
+    border: none;
+    color: white;
+    text-align: center;
+    font-size: 10px;
+    padding: 0;
+}
+
+.alert-tone-play-btn {
+    width: 48px;
+    height: 28px;
+    border: 1px solid #C1C1C1;
+    border-radius: 2px;
+    background: linear-gradient(to bottom, #F0F0F0 48.5%, #E3E3E3 51.7%);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+}
+
+.alert-tone-play-btn img {
+    width: 63px;
+    height: 40px;
+    pointer-events: none;
+    object-fit: contain;
+}
+
+/* ================================================
+   Dialog Windows
+   ================================================ */
+.dialog-window {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: white;
+    border: 1px solid #C0C0C0;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    z-index: 2000;
+    display: flex;
+    flex-direction: column;
+    max-width: 90vw;
+    max-height: 90vh;
+}
+
+.dialog-window.hidden {
+    display: none;
+}
+
+.dialog-header {
+    background: #F5F5F5;
+    padding: 10px 15px;
+    border-bottom: 1px solid #E0E0E0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.dialog-header h2 {
+    font-size: 14px;
+    font-weight: 600;
+    margin: 0;
+}
+
+.dialog-close {
+    background: none;
+    border: none;
+    font-size: 20px;
+    cursor: pointer;
+    color: #666;
+    padding: 0;
+    width: 25px;
+    height: 25px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 3px;
+    transition: background-color 0.15s;
+}
+
+.dialog-close:hover {
+    background-color: #E0E0E0;
+}
+
+.dialog-content {
+    padding: 15px;
+    overflow-y: auto;
+    flex: 1;
+}
+
+.dialog-footer {
+    padding: 10px 15px;
+    border-top: 1px solid #E0E0E0;
+    background: #F9F9F9;
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+}
+
+/* ================================================
+   Form Styles
+   ================================================ */
+.form-group {
+    margin-bottom: 15px;
+}
+
+.form-group h3 {
+    font-size: 12px;
+    font-weight: 600;
+    margin: 10px 0 5px 0;
+    color: #333;
+}
+
+.form-group label {
+    display: block;
+    font-size: 12px;
+    font-weight: 500;
+    margin-bottom: 5px;
+    color: #333;
+}
+
+.form-select, .form-input {
+    width: 100%;
+    padding: 6px 10px;
+    border: 1px solid #C0C0C0;
+    border-radius: 2px;
+    background: white;
+    font-size: 13px;
+    outline: none;
+}
+
+.form-select:focus, .form-input:focus {
+    border-color: #0078D7;
+}
+
+.form-input.keybind-display {
+    width: 150px;
+}
+
+.ptt-delay-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 5px;
+}
+
+.ptt-delay-row label {
+    margin: 0;
+}
+
+.ptt-delay-row input {
+    width: 80px;
+    padding: 4px 8px;
+}
+
+/* ================================================
+   Checkbox Styles
+   ================================================ */
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    font-size: 13px;
+    padding: 8px 0;
+    user-select: none;
+}
+
+.checkbox-label input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+    accent-color: #0078D7;
+}
+
+/* ================================================
+   Button Styles
+   ================================================ */
+.btn-primary, .btn-secondary {
+    padding: 8px 20px;
+    border: 1px solid #C0C0C0;
+    border-radius: 2px;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.btn-primary {
+    background: #F0F0F0;
+    color: #333;
+}
+
+.btn-primary:hover {
+    background: #E5E5E5;
+}
+
+.btn-secondary {
+    background: white;
+    color: #333;
+}
+
+.btn-secondary:hover {
+    background: #F9F9F9;
+}
+
+/* ================================================
+   Data Table Styles
+   ================================================ */
+.data-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+
+.data-table thead {
+    background: #F5F5F5;
+}
+
+.data-table th {
+    padding: 10px;
+    text-align: left;
+    font-weight: 600;
+    color: #333;
+    border-bottom: 1px solid #E0E0E0;
+}
+
+.data-table td {
+    padding: 8px 10px;
+    border-bottom: 1px solid #F0F0F0;
+}
+
+.data-table tbody tr:hover {
+    background: #F9F9F9;
+}
+
+/* ================================================
+   Tabs Styles
+   ================================================ */
+.tabs-container {
+    margin-top: 10px;
+}
+
+.tabs {
+    display: flex;
+    gap: 2px;
+    border-bottom: 1px solid #E0E0E0;
+    padding-bottom: 2px;
+}
+
+.tab-btn {
+    padding: 10px 16px;
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    cursor: pointer;
+    font-size: 13px;
+    color: #666;
+    transition: all 0.15s;
+}
+
+.tab-btn:hover {
+    color: #333;
+}
+
+.tab-btn.active {
+    color: #0078D7;
+    border-bottom: 2px solid #0078D7;
+}
+
+.tab-content {
+    padding-top: 15px;
+}
+
+.tab-content.hidden {
+    display: none;
+}
+
+/* ================================================
+   Keybinding Styles
+   ================================================ */
+.keybind-display-row {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+.keybinding-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 0;
+    border-bottom: 1px solid #F0F0F0;
+}
+
+.keybinding-row span {
+    flex: 1;
+    font-size: 12px;
+}
+
+.keybinding-keybind {
+    width: 100px;
+    padding: 4px 8px;
+    border: 1px solid #C0C0C0;
+    border-radius: 2px;
+    background: white;
+    font-size: 12px;
+}
+
+.keybinding-record-btn {
+    padding: 4px 10px;
+    background: #F0F0F0;
+    border: 1px solid #C0C0C0;
+    border-radius: 2px;
+    cursor: pointer;
+    font-size: 11px;
+}
+
+/* ================================================
+   Channel Devices Styles
+   ================================================ */
+.channel-devices-container {
+    max-height: 200px;
+    overflow-y: auto;
+    border: 1px solid #E0E0E0;
+    border-radius: 2px;
+    padding: 5px;
+}
+
+.channel-device-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 5px 0;
+    border-bottom: 1px solid #F0F0F0;
+}
+
+.channel-device-name {
+    flex: 1;
+    font-size: 12px;
+}
+
+.channel-device-select {
+    width: 200px;
+}
+
+/* ================================================
+   Tooltip Styles
+   ================================================ */
+.tooltip {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    background: #0078D7;
+    color: white;
+    border-radius: 50%;
+    text-align: center;
+    line-height: 16px;
+    font-size: 12px;
+    cursor: help;
+    position: relative;
+}
+
+.tooltip:hover::after {
+    content: attr(title);
+    position: absolute;
+    left: 0;
+    top: 20px;
+    background: #333;
+    color: white;
+    padding: 8px;
+    border-radius: 3px;
+    font-size: 11px;
+    white-space: nowrap;
+    z-index: 100;
+    max-width: 200px;
+}
+
+/* ================================================
+   Hidden Input
+   ================================================ */
+.hidden-input {
+    display: none;
+}
+
+/* ================================================
+   Responsive Adjustments
+   ================================================ */
+@media (max-width: 768px) {
+    .toolbar-row {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    
+    .toolbar-btn {
+        width: 100%;
+        margin-bottom: 5px;
+    }
+    
+    .toolbar-logo {
+        margin-top: 10px;
+        margin-left: 0;
+    }
+}
+
+/* ================================================
+   Scrollbar Styles
+   ================================================ */
+::-webkit-scrollbar {
+    width: 12px;
+    height: 12px;
+}
+
+::-webkit-scrollbar-track {
+    background: #F2F2F2;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #808080;
+    border-radius: 2px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #606060;
+}
+
+::-webkit-scrollbar-button {
+    background: #F2F2F2;
+    width: 12px;
+    height: 12px;
+}
+
+::-webkit-scrollbar-button:hover {
+    background: #E0E0E0;
+}

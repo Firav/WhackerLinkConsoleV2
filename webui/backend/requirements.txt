@@ -1,0 +1,13 @@
+# Node.js dependencies (see package.json for full list)
+# Run the following to install dependencies:
+# npm install
+
+# Core dependencies:
+# express - Web framework
+# ws - WebSocket server
+# cors - Cross-origin resource sharing middleware
+# body-parser - Body parsing middleware
+# yaml - YAML parsing library
+
+# Development dependencies:
+# nodemon - Automatic server restart
