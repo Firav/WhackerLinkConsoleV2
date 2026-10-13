@@ -40,6 +40,12 @@ namespace WhackerLinkConsoleV2
         public Dictionary<string, int> ChannelOutputDevices { get; set; } = new Dictionary<string, int>();
         public Dictionary<string, StereoChannelMode> ChannelStereoModes { get; set; } = new Dictionary<string, StereoChannelMode>();
 
+        // Loudness boost settings (fix for quiet systems)
+        // Default boost in dB for channels without an explicit per-channel boost (0 = off)
+        public float DefaultChannelBoostDb { get; set; } = 0f;
+        // Explicit per-channel boost overrides (dB) keyed by talkgroup id
+        public Dictionary<string, float> ChannelBoosts { get; set; } = new Dictionary<string, float>();
+
         // Hotkey bindings for global PTT
         // Supports both single-key (e.g., "T", "P") and dual-key (e.g., "Ctrl+T", "Ctrl+P")
         public string GlobalPttKeybind { get; set; } = "Ctrl+T";          // Global PTT across all selected channels
@@ -76,6 +82,8 @@ namespace WhackerLinkConsoleV2
                     AlertTonePositions = loadedSettings.AlertTonePositions ?? new Dictionary<string, ChannelPosition>();
                     ChannelOutputDevices = loadedSettings.ChannelOutputDevices ?? new Dictionary<string, int>();
                     ChannelStereoModes = loadedSettings.ChannelStereoModes ?? new Dictionary<string, StereoChannelMode>();
+                    DefaultChannelBoostDb = loadedSettings.DefaultChannelBoostDb;
+                    ChannelBoosts = loadedSettings.ChannelBoosts ?? new Dictionary<string, float>();
                     GlobalPttKeybind = loadedSettings.GlobalPttKeybind ?? "Ctrl+T";
                     EnableGlobalPttHotkey = loadedSettings.EnableGlobalPttHotkey;
                     HotkeysWorkWhenUnfocused = loadedSettings.HotkeysWorkWhenUnfocused;
@@ -126,6 +134,18 @@ namespace WhackerLinkConsoleV2
         public void UpdateChannelStereoMode(string channelName, StereoChannelMode stereoMode)
         {
             ChannelStereoModes[channelName] = stereoMode;
+            SaveSettings();
+        }
+
+        public void UpdateChannelBoost(string channelName, float boostDb)
+        {
+            ChannelBoosts[channelName] = Math.Max(0f, boostDb);
+            SaveSettings();
+        }
+
+        public void UpdateDefaultChannelBoost(float boostDb)
+        {
+            DefaultChannelBoostDb = Math.Max(0f, boostDb);
             SaveSettings();
         }
 

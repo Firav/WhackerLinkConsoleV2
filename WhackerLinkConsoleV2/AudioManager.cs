@@ -29,7 +29,7 @@ namespace WhackerLinkConsoleV2
     /// </summary>
     public class AudioManager
     {
-        private Dictionary<string, (WaveOutEvent waveOut, MixingSampleProvider mixer, BufferedWaveProvider buffer, GainSampleProvider gainProvider, MonoToStereoChannelProvider stereoProvider)> _talkgroupProviders;
+        private Dictionary<string, (WaveOutEvent waveOut, MixingSampleProvider mixer, BufferedWaveProvider buffer, GainSampleProvider gainProvider, BoostLimiterSampleProvider boostProvider, MonoToStereoChannelProvider stereoProvider)> _talkgroupProviders;
         private SettingsManager _settingsManager;
 
         /// <summary>
@@ -38,7 +38,7 @@ namespace WhackerLinkConsoleV2
         public AudioManager(SettingsManager settingsManager)
         {
             _settingsManager = settingsManager;
-            _talkgroupProviders = new Dictionary<string, (WaveOutEvent, MixingSampleProvider, BufferedWaveProvider, GainSampleProvider, MonoToStereoChannelProvider)>();
+            _talkgroupProviders = new Dictionary<string, (WaveOutEvent, MixingSampleProvider, BufferedWaveProvider, GainSampleProvider, BoostLimiterSampleProvider, MonoToStereoChannelProvider)>();
         }
 
         /// <summary>
@@ -78,8 +78,14 @@ namespace WhackerLinkConsoleV2
                 Gain = 1.0f
             };
 
+            // Loudness boost + limiting stage (full bypass when boost is 0 dB)
+            var boostProvider = new BoostLimiterSampleProvider(gainProvider)
+            {
+                BoostDb = GetBoostFor(talkgroupId)
+            };
+
             // Convert mono to stereo with channel routing
-            var stereoProvider = new MonoToStereoChannelProvider(gainProvider, stereoMode);
+            var stereoProvider = new MonoToStereoChannelProvider(boostProvider, stereoMode);
 
             var mixer = new MixingSampleProvider(WaveFormat.CreateIeeeFloatWaveFormat(8000, 2))
             {
@@ -91,7 +97,33 @@ namespace WhackerLinkConsoleV2
             waveOut.Init(mixer);
             waveOut.Play();
 
-            _talkgroupProviders[talkgroupId] = (waveOut, mixer, bufferProvider, gainProvider, stereoProvider);
+            _talkgroupProviders[talkgroupId] = (waveOut, mixer, bufferProvider, gainProvider, boostProvider, stereoProvider);
+        }
+
+        /// <summary>
+        /// Resolves the loudness boost (dB) for a talkgroup: per-channel override if present, otherwise the global default
+        /// </summary>
+        private float GetBoostFor(string talkgroupId)
+        {
+            return _settingsManager.ChannelBoosts.ContainsKey(talkgroupId)
+                ? _settingsManager.ChannelBoosts[talkgroupId]
+                : _settingsManager.DefaultChannelBoostDb;
+        }
+
+        /// <summary>
+        /// Sets the loudness boost (dB) for a specific talkgroup stream
+        /// </summary>
+        public void SetTalkgroupBoost(string talkgroupId, float boostDb)
+        {
+            if (_talkgroupProviders.ContainsKey(talkgroupId))
+            {
+                _talkgroupProviders[talkgroupId].boostProvider.BoostDb = boostDb;
+            }
+            else
+            {
+                AddTalkgroupStream(talkgroupId);
+                _talkgroupProviders[talkgroupId].boostProvider.BoostDb = boostDb;
+            }
         }
 
         /// <summary>

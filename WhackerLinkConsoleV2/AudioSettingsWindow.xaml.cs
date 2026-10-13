@@ -34,6 +34,8 @@ namespace WhackerLinkConsoleV2
         private readonly List<Codeplug.Channel> _channels;
         private readonly Dictionary<string, int> _selectedOutputDevices = new Dictionary<string, int>();
         private readonly Dictionary<string, StereoChannelMode> _selectedStereoModes = new Dictionary<string, StereoChannelMode>();
+        // Explicit per-channel boosts changed by the user this session (dB)
+        private readonly Dictionary<string, float> _explicitChannelBoosts = new Dictionary<string, float>();
 
         public AudioSettingsWindow(SettingsManager settingsManager, AudioManager audioManager, List<Codeplug.Channel> channels)
         {
@@ -45,6 +47,7 @@ namespace WhackerLinkConsoleV2
             LoadAudioDevices();
             LoadChannelOutputSettings();
             LoadPttSoundSettings();
+            LoadBoostSettings();
         }
 
         private void LoadAudioDevices()
@@ -128,11 +131,72 @@ namespace WhackerLinkConsoleV2
                     _selectedStereoModes[channel.Tgid] = mode;
                 };
 
+                // Add loudness boost selection
+                StackPanel boostPanel = new StackPanel
+                {
+                    Orientation = Orientation.Horizontal,
+                    Margin = new Thickness(0, 2, 0, 0)
+                };
+
+                boostPanel.Children.Add(new TextBlock
+                {
+                    Text = "  Boost (dB):",
+                    VerticalAlignment = VerticalAlignment.Center,
+                    FontSize = 11
+                });
+
+                Slider boostSlider = new Slider
+                {
+                    Width = 150,
+                    Minimum = 0,
+                    Maximum = 24,
+                    TickFrequency = 1,
+                    IsSnapToTickEnabled = true,
+                    VerticalAlignment = VerticalAlignment.Center
+                };
+
+                TextBlock boostLabel = new TextBlock
+                {
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Margin = new Thickness(8, 0, 0, 0)
+                };
+
+                // Effective boost: per-channel override if present, otherwise the global default
+                float currentBoost = _settingsManager.ChannelBoosts.ContainsKey(channel.Tgid)
+                    ? _settingsManager.ChannelBoosts[channel.Tgid]
+                    : _settingsManager.DefaultChannelBoostDb;
+
+                // Set the initial value before attaching the handler so it doesn't count as an explicit change
+                boostSlider.Value = currentBoost;
+                boostLabel.Text = $"{(int)currentBoost} dB";
+
+                boostSlider.ValueChanged += (s, e) =>
+                {
+                    _explicitChannelBoosts[channel.Tgid] = (float)boostSlider.Value;
+                    boostLabel.Text = $"{(int)boostSlider.Value} dB";
+                };
+
+                boostPanel.Children.Add(boostSlider);
+                boostPanel.Children.Add(boostLabel);
+
                 ChannelOutputStackPanel.Children.Add(channelLabel);
                 ChannelOutputStackPanel.Children.Add(outputDeviceComboBox);
                 ChannelOutputStackPanel.Children.Add(stereoLabel);
                 ChannelOutputStackPanel.Children.Add(stereoChannelComboBox);
+                ChannelOutputStackPanel.Children.Add(boostPanel);
             }
+        }
+
+        private void LoadBoostSettings()
+        {
+            DefaultBoostSlider.Value = _settingsManager.DefaultChannelBoostDb;
+            DefaultBoostLabel.Text = $"{(int)DefaultBoostSlider.Value} dB";
+        }
+
+        private void DefaultBoostSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            if (DefaultBoostLabel != null)
+                DefaultBoostLabel.Text = $"{(int)e.NewValue} dB";
         }
 
         private List<string> GetAudioInputDevices()
@@ -184,6 +248,26 @@ namespace WhackerLinkConsoleV2
             {
                 _settingsManager.UpdateChannelStereoMode(entry.Key, entry.Value);
                 _audioManager.SetTalkgroupStereoMode(entry.Key, entry.Value);
+            }
+
+            // Save loudness boost settings
+            _settingsManager.UpdateDefaultChannelBoost((float)DefaultBoostSlider.Value);
+
+            foreach (var entry in _explicitChannelBoosts)
+            {
+                _settingsManager.UpdateChannelBoost(entry.Key, entry.Value);
+            }
+
+            // Live-apply the effective boost (per-channel override or global default)
+            foreach (var channel in _channels)
+            {
+                float effectiveBoost = _explicitChannelBoosts.ContainsKey(channel.Tgid)
+                    ? _explicitChannelBoosts[channel.Tgid]
+                    : _settingsManager.ChannelBoosts.ContainsKey(channel.Tgid)
+                        ? _settingsManager.ChannelBoosts[channel.Tgid]
+                        : _settingsManager.DefaultChannelBoostDb;
+
+                _audioManager.SetTalkgroupBoost(channel.Tgid, effectiveBoost);
             }
 
             // Save PTT sound settings
