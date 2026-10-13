@@ -1147,6 +1147,31 @@ namespace WhackerLinkConsoleV2
 
                 if (channel.PageState)
                 {
+                    if (!system.IsDvm)
+                    {
+                        IPeer handler = _webSocketManager.GetWebSocketHandler(system.Name);
+
+                        // request a fresh voice channel grant for every tone,
+                        // this mirrors marking a channel, the GRANT response
+                        // re-tunes the voice channel so queued tones all key up
+                        GRP_VCH_REQ request = new GRP_VCH_REQ
+                        {
+                            SrcId = system.Rid,
+                            DstId = cpgChannel.Tgid,
+                            Site = system.Site
+                        };
+
+                        handler.SendMessage(request.GetData());
+                        await Task.Delay(500);
+                    }
+                    else
+                    {
+                        PeerSystem handler = _fneSystemManager.GetFneSystem(system.Name);
+
+                        // key each DVM tone back up so released channels re-key per tone
+                        handler.SendP25TDU(UInt32.Parse(system.Rid), UInt32.Parse(cpgChannel.Tgid), true);
+                    }
+
                     ToneGenerator generator = new ToneGenerator();
 
                     double toneADuration = 1.0;
