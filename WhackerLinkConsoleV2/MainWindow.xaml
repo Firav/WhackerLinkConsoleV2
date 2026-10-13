@@ -207,8 +207,8 @@
         <Image HorizontalAlignment="Left" Margin="514,3,0,3" Grid.Row="1" Width="38" Source="/Assets/page.png" IsHitTestVisible="False"/>
         <Button x:Name="QCQueuePlayButton" VerticalContentAlignment="Center" HorizontalAlignment="Left" Margin="791,0,0,0" VerticalAlignment="Center" Height="46" Width="90" Grid.Row="1" IsEnabled="False" Click="PlayQCQueue_Click" BorderBrush="#FFC1C1C1" BorderThickness="1,1,1,1" FontSize="10" FontFamily="Arial" ToolTip="Plays all queued QC2 tones consecutively over the page enabled channels">
             <StackPanel Orientation="Vertical" HorizontalAlignment="Center" VerticalAlignment="Center">
-                <Image Source="/Assets/pagequeue.png" Height="22" Width="22" HorizontalAlignment="Center"/>
-                <TextBlock x:Name="QCQueuePlayText" Text="Page Queue (0)" HorizontalAlignment="Center" Margin="0,1,0,0"/>
+                <Image Source="/Assets/pagequeue.png" Height="30" Width="30" HorizontalAlignment="Center"/>
+                <TextBlock x:Name="QCQueuePlayText" Text="Page Queue (0)" HorizontalAlignment="Center" Margin="0,-2,0,0"/>
             </StackPanel>
             <Button.Resources>
                 <Style TargetType="{x:Type Border}">
