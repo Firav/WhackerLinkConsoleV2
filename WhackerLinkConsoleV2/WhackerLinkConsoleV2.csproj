@@ -68,6 +68,7 @@
     <Resource Include="Assets\connection.png" />
     <Resource Include="Assets\instantptt.png" />
     <Resource Include="Assets\page.png" />
+    <Resource Include="Assets\pagequeue.png" />
     <Resource Include="Assets\pageselect.png" />
     <Resource Include="Assets\pttselect.png" />
     <Resource Include="Assets\whackerlink-logo.png" />

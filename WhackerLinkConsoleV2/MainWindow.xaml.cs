@@ -1308,7 +1308,7 @@ namespace WhackerLinkConsoleV2
         /// </summary>
         private void UpdateQCQueuePlayButton()
         {
-            QCQueuePlayButton.Content = $"QC Queue ({_qcToneQueuePairs.Count})";
+            QCQueuePlayText.Text = $"Page Queue ({_qcToneQueuePairs.Count})";
             QCQueuePlayButton.IsEnabled = _qcToneQueuePairs.Count > 0;
 
             if (_qcToneQueuePairs.Count > 0)
