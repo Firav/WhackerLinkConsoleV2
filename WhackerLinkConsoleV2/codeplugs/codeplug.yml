@@ -45,6 +45,18 @@ systems:
         siteID: 1
         range: 1.5
 
+qcList:
+  # Quick Call II tone pairs; shown on the main window as alert tone tiles.
+  # name is optional, when omitted the tile labels itself as "QC2 <a>/<b>"
+  - name: "City Fire HQ"
+    a: 1006.9
+    b: 457.9
+  - name: "County Fire"
+    a: 855.5
+    b: 349.0
+  - a: 877.5
+    b: 501.1
+
 zones:
   - name: "Zone 1"
     channels:
