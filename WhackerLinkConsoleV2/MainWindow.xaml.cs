@@ -1132,7 +1132,8 @@ namespace WhackerLinkConsoleV2
         /// </summary>
         /// <param name="toneAFrequency"></param>
         /// <param name="toneBFrequency"></param>
-        private async Task SendQC2ToneAsync(double toneAFrequency, double toneBFrequency)
+        /// <param name="clearPageState"></param>
+        private async Task SendQC2ToneAsync(double toneAFrequency, double toneBFrequency, bool clearPageState = true)
         {
             if (Codeplug == null)
                 return;
@@ -1265,8 +1266,13 @@ namespace WhackerLinkConsoleV2
 
                     Dispatcher.Invoke(() =>
                     {
-                        //channel.PageState = false; // TODO: Investigate
-                        channel.PageSelectButton.Background = channel.grayGradient;
+                        // consuming the page mark keeps the state and button
+                        // visual in sync through the PageState property, the
+                        // channel must be re marked to page again. Queued
+                        // tones clear their marks together when the queue
+                        // finishes playing instead
+                        if (clearPageState)
+                            channel.PageState = false;
                     });
                 }
             }
@@ -1327,18 +1333,31 @@ namespace WhackerLinkConsoleV2
             if (_qcToneQueuePairs.Count == 0)
                 return;
 
+            // snapshot the page marked channels the queue will play across,
+            // their marks stay lit during the whole playback
+            List<ChannelBox> pageTargets = _selectedChannelsManager.GetSelectedChannels().Where(c => c.PageState).ToList();
+
             QCQueuePlayButton.IsEnabled = false;
 
             try
             {
                 foreach (QCTonePair pair in _qcToneQueuePairs.ToList())
                 {
-                    await SendQC2ToneAsync(pair.A, pair.B);
+                    await SendQC2ToneAsync(pair.A, pair.B, false);
                 }
             }
             finally
             {
                 _qcToneQueuePairs.Clear();
+
+                List<ChannelBox> markedTargets = pageTargets;
+
+                // clear the page marks once the whole queue has played
+                Dispatcher.Invoke(() =>
+                {
+                    foreach (ChannelBox target in markedTargets)
+                        target.PageState = false;
+                });
 
                 UpdateQCQueuePlayButton();
 
