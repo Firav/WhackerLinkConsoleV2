@@ -46,11 +46,16 @@ namespace WhackerLinkConsoleV2.Controls
 
         public bool IsEditMode { get; set; }
 
-        public AlertTone(string alertFilePath)
+        public AlertTone(string alertFilePath) : this(alertFilePath, System.IO.Path.GetFileNameWithoutExtension(alertFilePath))
+        {
+
+        }
+
+        protected AlertTone(string alertFilePath, string displayName)
         {
             InitializeComponent();
             AlertFilePath = alertFilePath;
-            AlertFileName = System.IO.Path.GetFileNameWithoutExtension(alertFilePath);
+            AlertFileName = displayName;
 
             this.MouseLeftButtonDown += AlertTone_MouseLeftButtonDown;
             this.MouseMove += AlertTone_MouseMove;

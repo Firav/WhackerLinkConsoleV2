@@ -30,6 +30,7 @@ using System.Windows.Input;
 using WhackerLinkLib.Models.Radio;
 using YamlDotNet.Serialization;
 using YamlDotNet.Serialization.NamingConventions;
+using YamlDotNet.RepresentationModel;
 using WhackerLinkConsoleV2.Controls;
 using WebSocketManager = WhackerLinkLib.Managers.WebSocketManager;
 using System.Windows.Media;
@@ -56,6 +57,7 @@ namespace WhackerLinkConsoleV2
     public partial class MainWindow : Window
     {
         public Codeplug Codeplug { get; set; }
+        private List<QCTonePair> _qcTonePairs = new List<QCTonePair>();
         private bool isEditMode = false;
 
         private bool globalPttState = false;
@@ -198,13 +200,70 @@ namespace WhackerLinkConsoleV2
                     .Build();
 
                 var yaml = File.ReadAllText(filePath);
+
+                // FiveM style codeplugs may use "site: []" where WhackerLinkLib
+                // expects the site node to be a mapping, strip those so the
+                // deserializer accepts them
+                yaml = SanitizeYamlForCodeplug(yaml);
+
                 Codeplug = deserializer.Deserialize<Codeplug>(yaml);
+
+                // Load the Quick Call II tone pairs from the codeplug qcList section
+                QcToneDocument qcToneDocument = deserializer.Deserialize<QcToneDocument>(yaml);
+                _qcTonePairs = qcToneDocument?.QcList ?? new List<QCTonePair>();
 
                 GenerateChannelWidgets();
             }
             catch (Exception ex)
             {
                 MessageBox.Show($"Error loading codeplug: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        /// <summary>
+        /// Strips any system "site" entry that is not a mapping (e.g. "site: []")
+        /// so FiveM style codeplugs deserialize cleanly into WhackerLinkLib
+        /// </summary>
+        /// <param name="yaml"></param>
+        /// <returns></returns>
+        private string SanitizeYamlForCodeplug(string yaml)
+        {
+            try
+            {
+                YamlStream stream = new YamlStream();
+                stream.Load(new StringReader(yaml));
+
+                if (stream.Documents.Count == 0 || !(stream.Documents[0].RootNode is YamlMappingNode root))
+                    return yaml;
+
+                bool changed = false;
+
+                if (root.Children.TryGetValue(new YamlScalarNode("systems"), out YamlNode systemsNode) &&
+                    systemsNode is YamlSequenceNode systems)
+                {
+                    foreach (YamlNode systemNode in systems)
+                    {
+                        if (systemNode is YamlMappingNode system &&
+                            system.Children.TryGetValue(new YamlScalarNode("site"), out YamlNode siteNode) &&
+                            !(siteNode is YamlMappingNode))
+                        {
+                            system.Children.Remove(new YamlScalarNode("site"));
+                            changed = true;
+                        }
+                    }
+                }
+
+                if (!changed)
+                    return yaml;
+
+                StringWriter writer = new StringWriter();
+                stream.Save(writer);
+                return writer.ToString();
+            }
+            catch
+            {
+                // Fall back to the original yaml, the deserializer will surface any errors
+                return yaml;
             }
         }
 
@@ -454,6 +513,45 @@ namespace WhackerLinkConsoleV2
                     alertTone.MouseRightButtonUp += AlertTone_MouseRightButtonUp;
 
                     ChannelsCanvas.Children.Add(alertTone);
+                }
+
+                // QC2 tone widgets built from the codeplug qcList section
+                if (_qcTonePairs != null && _qcTonePairs.Count > 0)
+                {
+                    foreach (var qcPair in _qcTonePairs)
+                    {
+                        var qcTone = new QCTone(qcPair.A, qcPair.B, qcPair.Name)
+                        {
+                            IsEditMode = isEditMode
+                        };
+
+                        qcTone.OnAlertTone += SendAlertTone;
+
+                        if (_settingsManager.AlertTonePositions.TryGetValue(qcTone.PositionKey, out var qcPosition))
+                        {
+                            Canvas.SetLeft(qcTone, qcPosition.X);
+                            Canvas.SetTop(qcTone, qcPosition.Y);
+                        }
+                        else
+                        {
+                            Canvas.SetLeft(qcTone, offsetX);
+                            Canvas.SetTop(qcTone, offsetY);
+                        }
+
+                        qcTone.MouseRightButtonUp += AlertTone_MouseRightButtonUp;
+
+                        ChannelsCanvas.Children.Add(qcTone);
+
+                        offsetX += 128;
+
+                        if (offsetX + 105 > ChannelsCanvas.ActualWidth)
+                        {
+                            offsetX = 20;
+                            offsetY += 60;
+                        }
+                    }
+
+                    AdjustCanvasHeight();
                 }
             }
 
@@ -1002,116 +1100,154 @@ namespace WhackerLinkConsoleV2
             pageWindow.Owner = this;
             if (pageWindow.ShowDialog() == true)
             {
-                foreach (ChannelBox channel in _selectedChannelsManager.GetSelectedChannels())
+                try
                 {
-                    Codeplug.System system = Codeplug.GetSystemForChannel(channel.ChannelName);
-                    Codeplug.Channel cpgChannel = Codeplug.GetChannelByName(channel.ChannelName);
+                    double toneAFrequency = Double.Parse(pageWindow.ToneA);
+                    double toneBFrequency = Double.Parse(pageWindow.ToneB);
 
-                    if (channel.PageState)
+                    await SendQC2ToneAsync(toneAFrequency, toneBFrequency);
+                }
+                catch (System.FormatException)
+                {
+                    MessageBox.Show("Tone values must be numeric frequencies (Hz).", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
+                catch (System.OverflowException)
+                {
+                    MessageBox.Show("Tone value is out of range.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Emits a Quick Call II two tone sequence (A tone 1s, B tone 3s) over the
+        /// selected page enabled channels. Shared by the manual QC2 window and the
+        /// QC tone widgets generated from the codeplug qcList section
+        /// </summary>
+        /// <param name="toneAFrequency"></param>
+        /// <param name="toneBFrequency"></param>
+        private async Task SendQC2ToneAsync(double toneAFrequency, double toneBFrequency)
+        {
+            if (Codeplug == null)
+                return;
+
+            foreach (ChannelBox channel in _selectedChannelsManager.GetSelectedChannels())
+            {
+                Codeplug.System system = Codeplug.GetSystemForChannel(channel.ChannelName);
+                Codeplug.Channel cpgChannel = Codeplug.GetChannelByName(channel.ChannelName);
+
+                if (system == null || cpgChannel == null)
+                    continue;
+
+                if (channel.PageState)
+                {
+                    ToneGenerator generator = new ToneGenerator();
+
+                    double toneADuration = 1.0;
+                    double toneBDuration = 3.0;
+
+                    byte[] toneA = generator.GenerateTone(toneAFrequency, toneADuration);
+                    byte[] toneB = generator.GenerateTone(toneBFrequency, toneBDuration);
+
+                    byte[] combinedAudio = new byte[toneA.Length + toneB.Length];
+                    Buffer.BlockCopy(toneA, 0, combinedAudio, 0, toneA.Length);
+                    Buffer.BlockCopy(toneB, 0, combinedAudio, toneA.Length, toneB.Length);
+
+                    int chunkSize = 1600;
+
+                    if (system.IsDvm)
+                        chunkSize = 320;
+
+                    int totalChunks = (combinedAudio.Length + chunkSize - 1) / chunkSize;
+
+                    Task.Run(() =>
                     {
-                        ToneGenerator generator = new ToneGenerator();
+                        //_waveProvider.ClearBuffer();
+                        _audioManager.AddTalkgroupStream(cpgChannel.Tgid, combinedAudio);
+                    });
 
-                        double toneADuration = 1.0;
-                        double toneBDuration = 3.0;
-
-                        byte[] toneA = generator.GenerateTone(Double.Parse(pageWindow.ToneA), toneADuration);
-                        byte[] toneB = generator.GenerateTone(Double.Parse(pageWindow.ToneB), toneBDuration);
-
-                        byte[] combinedAudio = new byte[toneA.Length + toneB.Length];
-                        Buffer.BlockCopy(toneA, 0, combinedAudio, 0, toneA.Length);
-                        Buffer.BlockCopy(toneB, 0, combinedAudio, toneA.Length, toneB.Length);
-
-                        int chunkSize = 1600;
-
-                        if (system.IsDvm)
-                            chunkSize = 320;
-
-                        int totalChunks = (combinedAudio.Length + chunkSize - 1) / chunkSize;
-
-                        Task.Run(() =>
+                    await Task.Run(() =>
+                    {
+                        for (int i = 0; i < totalChunks; i++)
                         {
-                            //_waveProvider.ClearBuffer();
-                            _audioManager.AddTalkgroupStream(cpgChannel.Tgid, combinedAudio);
-                        });
+                            int offset = i * chunkSize;
+                            int size = Math.Min(chunkSize, combinedAudio.Length - offset);
 
-                        await Task.Run(() =>
-                        {
-                            for (int i = 0; i < totalChunks; i++)
+                            byte[] chunk = new byte[chunkSize];
+                            Buffer.BlockCopy(combinedAudio, offset, chunk, 0, size);
+
+                            if (!system.IsDvm)
                             {
-                                int offset = i * chunkSize;
-                                int size = Math.Min(chunkSize, combinedAudio.Length - offset);
+                                IPeer handler = _webSocketManager.GetWebSocketHandler(system.Name);
 
-                                byte[] chunk = new byte[chunkSize];
-                                Buffer.BlockCopy(combinedAudio, offset, chunk, 0, size);
-
-                                if (!system.IsDvm)
+                                AudioPacket voicePacket = new AudioPacket
                                 {
-                                    IPeer handler = _webSocketManager.GetWebSocketHandler(system.Name);
-
-                                    AudioPacket voicePacket = new AudioPacket
+                                    Data = chunk,
+                                    VoiceChannel = new VoiceChannel
                                     {
-                                        Data = chunk,
-                                        VoiceChannel = new VoiceChannel
-                                        {
-                                            Frequency = channel.VoiceChannel,
-                                            DstId = cpgChannel.Tgid,
-                                            SrcId = system.Rid,
-                                            Site = system.Site
-                                        },
-                                        Site = system.Site,
-                                        LopServerVocode = true
-                                    };
+                                        Frequency = channel.VoiceChannel,
+                                        DstId = cpgChannel.Tgid,
+                                        SrcId = system.Rid,
+                                        Site = system.Site
+                                    },
+                                    Site = system.Site,
+                                    LopServerVocode = true
+                                };
 
-                                    handler.SendMessage(voicePacket.GetData());
-                                } else
+                                handler.SendMessage(voicePacket.GetData());
+                            } else
+                            {
+                                PeerSystem handler = _fneSystemManager.GetFneSystem(system.Name);
+
+                                if (chunk.Length == 320)
                                 {
-                                    PeerSystem handler = _fneSystemManager.GetFneSystem(system.Name);
-
-                                    if (chunk.Length == 320)
-                                    {
-                                        P25EncodeAudioFrame(chunk, handler, channel, cpgChannel, system);
-                                    }
+                                    P25EncodeAudioFrame(chunk, handler, channel, cpgChannel, system);
                                 }
                             }
-                        });
-
-                        double totalDurationMs = (toneADuration + toneBDuration) * 1000 + 750;
-                        await Task.Delay((int)totalDurationMs);
-
-                        if (!system.IsDvm)
-                        {
-                            IPeer handler = _webSocketManager.GetWebSocketHandler(system.Name);
-
-                            GRP_VCH_RLS release = new GRP_VCH_RLS
-                            {
-                                SrcId = system.Rid,
-                                DstId = cpgChannel.Tgid,
-                                Channel = channel.VoiceChannel,
-                                Site = system.Site
-                            };
-
-                            handler.SendMessage(release.GetData());
-                        } else
-                        {
-                            PeerSystem handler = _fneSystemManager.GetFneSystem(system.Name);
-
-                            await Task.Delay(4000);
-
-                            handler.SendP25TDU(UInt32.Parse(system.Rid), UInt32.Parse(cpgChannel.Tgid), false);
                         }
+                    });
 
-                        Dispatcher.Invoke(() =>
+                    double totalDurationMs = (toneADuration + toneBDuration) * 1000 + 750;
+                    await Task.Delay((int)totalDurationMs);
+
+                    if (!system.IsDvm)
+                    {
+                        IPeer handler = _webSocketManager.GetWebSocketHandler(system.Name);
+
+                        GRP_VCH_RLS release = new GRP_VCH_RLS
                         {
-                            //channel.PageState = false; // TODO: Investigate
-                            channel.PageSelectButton.Background = channel.grayGradient;
-                        });
+                            SrcId = system.Rid,
+                            DstId = cpgChannel.Tgid,
+                            Channel = channel.VoiceChannel,
+                            Site = system.Site
+                        };
+
+                        handler.SendMessage(release.GetData());
+                    } else
+                    {
+                        PeerSystem handler = _fneSystemManager.GetFneSystem(system.Name);
+
+                        await Task.Delay(4000);
+
+                        handler.SendP25TDU(UInt32.Parse(system.Rid), UInt32.Parse(cpgChannel.Tgid), false);
                     }
+
+                    Dispatcher.Invoke(() =>
+                    {
+                        //channel.PageState = false; // TODO: Investigate
+                        channel.PageSelectButton.Background = channel.grayGradient;
+                    });
                 }
             }
         }
 
         private void SendAlertTone(AlertTone e)
         {
+            if (e is QCTone qcTone)
+            {
+                Task.Run(async () => await SendQC2ToneAsync(qcTone.ToneAFrequency, qcTone.ToneBFrequency));
+                return;
+            }
+
             Task.Run(() => SendAlertTone(e.AlertFilePath));
         }
 
