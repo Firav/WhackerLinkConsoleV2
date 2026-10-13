@@ -30,6 +30,7 @@ namespace WhackerLinkConsoleV2
     public class AudioManager
     {
         private Dictionary<string, (WaveOutEvent waveOut, MixingSampleProvider mixer, BufferedWaveProvider buffer, GainSampleProvider gainProvider, BoostLimiterSampleProvider boostProvider, MonoToStereoChannelProvider stereoProvider)> _talkgroupProviders;
+        private Dictionary<string, float> _talkgroupVolumes;
         private SettingsManager _settingsManager;
 
         /// <summary>
@@ -39,6 +40,7 @@ namespace WhackerLinkConsoleV2
         {
             _settingsManager = settingsManager;
             _talkgroupProviders = new Dictionary<string, (WaveOutEvent, MixingSampleProvider, BufferedWaveProvider, GainSampleProvider, BoostLimiterSampleProvider, MonoToStereoChannelProvider)>();
+            _talkgroupVolumes = new Dictionary<string, float>();
         }
 
         /// <summary>
@@ -73,9 +75,13 @@ namespace WhackerLinkConsoleV2
                 DiscardOnBufferOverflow = true
             };
 
+            // Reapply the volume previously set through the channel slider (in-memory only) so the
+            // gain survives stream rebuilds such as output device changes
+            float channelVolume = _talkgroupVolumes.TryGetValue(talkgroupId, out float savedVolume) ? savedVolume : 1.0f;
+
             var gainProvider = new GainSampleProvider(bufferProvider.ToSampleProvider())
             {
-                Gain = 1.0f
+                Gain = channelVolume
             };
 
             // Loudness boost + limiting stage (full bypass when boost is 0 dB)
@@ -127,10 +133,13 @@ namespace WhackerLinkConsoleV2
         }
 
         /// <summary>
-        /// Adjusts the volume of a specific talkgroup stream
+        /// Adjusts the volume of a specific talkgroup stream and remembers it (in-memory) so
+        /// rebuilt streams, for example after an output device change, keep the slider's level
         /// </summary>
         public void SetTalkgroupVolume(string talkgroupId, float volume)
         {
+            _talkgroupVolumes[talkgroupId] = volume;
+
             if (_talkgroupProviders.ContainsKey(talkgroupId))
             {
                 _talkgroupProviders[talkgroupId].gainProvider.Gain = volume;
