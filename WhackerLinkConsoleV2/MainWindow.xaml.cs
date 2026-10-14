@@ -213,6 +213,23 @@ namespace WhackerLinkConsoleV2
                 QcToneDocument qcToneDocument = deserializer.Deserialize<QcToneDocument>(yaml);
                 _qcTonePairs = qcToneDocument?.QcList ?? new List<QCTonePair>();
 
+                // WhackerLinkFiveM tone detection only analyzes audio between
+                // 300 Hz and 3000 Hz (client/ui/js/script.js processTone
+                // window), so a pair outside that range keys the radio up but
+                // can never trigger a pager alert in game. Warn so operators
+                // know to re-tone it.
+                foreach (QCTonePair pair in _qcTonePairs)
+                {
+                    if (pair.A < 300 || pair.A > 3000 || pair.B < 300 || pair.B > 3000)
+                    {
+                        string pairName = string.IsNullOrEmpty(pair.Name)
+                            ? QCTonePair.BuildDisplayName(pair.A, pair.B, null)
+                            : pair.Name;
+
+                        Console.WriteLine($"Warning: qcList tone '{pairName}' (A: {pair.A:F1} Hz, B: {pair.B:F1} Hz) is outside the 300-3000 Hz window WhackerLinkFiveM can detect, the tone will transmit but will not page in game.");
+                    }
+                }
+
                 GenerateChannelWidgets();
             }
             catch (Exception ex)
@@ -1128,6 +1145,16 @@ namespace WhackerLinkConsoleV2
                 {
                     double toneAFrequency = Double.Parse(pageWindow.ToneA);
                     double toneBFrequency = Double.Parse(pageWindow.ToneB);
+
+                    // WhackerLinkFiveM tone detection only analyzes audio
+                    // between 300 Hz and 3000 Hz, tones outside that window
+                    // will key up but can never trigger a pager alert in game
+                    if (toneAFrequency < 300 || toneAFrequency > 3000 ||
+                        toneBFrequency < 300 || toneBFrequency > 3000)
+                    {
+                        MessageBox.Show("Tone frequencies must be between 300 Hz and 3000 Hz to be detectable by WhackerLink radios.", "Out of Range", MessageBoxButton.OK, MessageBoxImage.Warning);
+                        return;
+                    }
 
                     await SendQC2ToneAsync(toneAFrequency, toneBFrequency);
                 }
