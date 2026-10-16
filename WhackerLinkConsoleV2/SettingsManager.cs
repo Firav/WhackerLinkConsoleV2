@@ -61,6 +61,12 @@ namespace WhackerLinkConsoleV2
         // PTT Tail Delay (in milliseconds) - time to keep transmission open after PTT release
         public int PttTailDelayMs { get; set; } = 0;
 
+        // Quick Call II page tone transmit level in dBFS (0 = full scale, -30 = comfortable page level).
+        // Generated QC2 tones are scaled to this level so listening radios (including the FiveM NUI
+        // radios) get a comfortable page instead of a full scale sine wave. 0 restores the old full
+        // volume tones. This is the "Option A" console side fix for ear splitting page tones.
+        public float QcToneLevelDb { get; set; } = -30f;
+
         public void LoadSettings()
         {
             if (!File.Exists(SettingsFilePath)) return;
@@ -90,6 +96,7 @@ namespace WhackerLinkConsoleV2
                     EnablePttDownSound = loadedSettings.EnablePttDownSound;
                     EnablePttUpSound = loadedSettings.EnablePttUpSound;
                     PttTailDelayMs = loadedSettings.PttTailDelayMs;
+                    QcToneLevelDb = loadedSettings.QcToneLevelDb;
                 }
             }
             catch (Exception ex)
@@ -147,6 +154,21 @@ namespace WhackerLinkConsoleV2
         {
             DefaultChannelBoostDb = Math.Max(0f, boostDb);
             SaveSettings();
+        }
+
+        public void UpdateQcToneLevel(float levelDb)
+        {
+            QcToneLevelDb = Math.Clamp(levelDb, -60f, 0f);
+            SaveSettings();
+        }
+
+        /// <summary>
+        /// Linear peak amplitude (0.0 - 1.0) for generated Quick Call II page tones,
+        /// derived from <see cref="QcToneLevelDb"/>.
+        /// </summary>
+        public double GetQcToneAmplitude()
+        {
+            return Math.Pow(10.0, Math.Clamp(QcToneLevelDb, -60f, 0f) / 20.0);
         }
 
         public void SaveSettings()

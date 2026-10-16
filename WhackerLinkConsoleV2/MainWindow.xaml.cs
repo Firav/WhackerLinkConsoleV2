@@ -1222,8 +1222,14 @@ namespace WhackerLinkConsoleV2
                     double toneADuration = 1.0;
                     double toneBDuration = 3.0;
 
-                    byte[] toneA = generator.GenerateTone(toneAFrequency, toneADuration);
-                    byte[] toneB = generator.GenerateTone(toneBFrequency, toneBDuration);
+                    // Option A: page tones are generated at a reduced level so listening radios
+                    // (and the FiveM NUI radios) get a comfortable page instead of a full scale
+                    // sine wave. DVM/P25 keeps full scale because the console side tone detector
+                    // needs a hot signal to trigger the IMBE tone frames.
+                    double toneAmplitude = system.IsDvm ? 1.0 : _settingsManager.GetQcToneAmplitude();
+
+                    byte[] toneA = generator.GenerateTone(toneAFrequency, toneADuration, toneAmplitude);
+                    byte[] toneB = generator.GenerateTone(toneBFrequency, toneBDuration, toneAmplitude);
 
                     byte[] combinedAudio = new byte[toneA.Length + toneB.Length];
                     Buffer.BlockCopy(toneA, 0, combinedAudio, 0, toneA.Length);

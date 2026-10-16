@@ -48,16 +48,19 @@ namespace WhackerLinkConsoleV2
         /// </summary>
         /// <param name="frequency">Frequency in Hz</param>
         /// <param name="durationSeconds">Duration in seconds</param>
+        /// <param name="amplitude">Peak amplitude as a fraction of full scale, 1.0 = full scale (0.1 = -20 dBFS)</param>
         /// <returns>PCM data as a byte array</returns>
-        public byte[] GenerateTone(double frequency, double durationSeconds)
+        public byte[] GenerateTone(double frequency, double durationSeconds, double amplitude = 1.0)
         {
+            double peakAmplitude = Math.Clamp(amplitude, 0.0, 1.0);
+
             int sampleCount = (int)(_sampleRate * durationSeconds);
             byte[] buffer = new byte[sampleCount * (_bitsPerSample / 8)];
 
             for (int i = 0; i < sampleCount; i++)
             {
                 double time = (double)i / _sampleRate;
-                short sampleValue = (short)(Math.Sin(2 * Math.PI * frequency * time) * short.MaxValue);
+                short sampleValue = (short)(Math.Sin(2 * Math.PI * frequency * time) * short.MaxValue * peakAmplitude);
 
                 buffer[i * 2] = (byte)(sampleValue & 0xFF);
                 buffer[i * 2 + 1] = (byte)((sampleValue >> 8) & 0xFF);
@@ -71,9 +74,10 @@ namespace WhackerLinkConsoleV2
         /// </summary>
         /// <param name="frequency">Frequency in Hz</param>
         /// <param name="durationSeconds">Duration in seconds</param>
-        public void PlayTone(double frequency, double durationSeconds)
+        /// <param name="amplitude">Peak amplitude as a fraction of full scale, 1.0 = full scale</param>
+        public void PlayTone(double frequency, double durationSeconds, double amplitude = 1.0)
         {
-            byte[] toneData = GenerateTone(frequency, durationSeconds);
+            byte[] toneData = GenerateTone(frequency, durationSeconds, amplitude);
 
             _waveProvider.ClearBuffer();
             _waveProvider.AddSamples(toneData, 0, toneData.Length);

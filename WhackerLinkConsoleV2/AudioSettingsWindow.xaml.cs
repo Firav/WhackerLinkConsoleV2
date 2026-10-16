@@ -48,6 +48,7 @@ namespace WhackerLinkConsoleV2
             LoadChannelOutputSettings();
             LoadPttSoundSettings();
             LoadBoostSettings();
+            LoadQcToneSettings();
         }
 
         private void LoadAudioDevices()
@@ -199,6 +200,18 @@ namespace WhackerLinkConsoleV2
                 DefaultBoostLabel.Text = $"{(int)e.NewValue} dB";
         }
 
+        private void LoadQcToneSettings()
+        {
+            QcToneLevelSlider.Value = Math.Clamp(_settingsManager.QcToneLevelDb, (float)QcToneLevelSlider.Minimum, (float)QcToneLevelSlider.Maximum);
+            QcToneLevelLabel.Text = $"{(int)QcToneLevelSlider.Value} dBFS";
+        }
+
+        private void QcToneLevelSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            if (QcToneLevelLabel != null)
+                QcToneLevelLabel.Text = $"{(int)e.NewValue} dBFS";
+        }
+
         private List<string> GetAudioInputDevices()
         {
             List<string> inputDevices = new List<string>();
@@ -252,6 +265,9 @@ namespace WhackerLinkConsoleV2
 
             // Save loudness boost settings
             _settingsManager.UpdateDefaultChannelBoost((float)DefaultBoostSlider.Value);
+
+            // Save the Quick Call II page tone transmit level
+            _settingsManager.UpdateQcToneLevel((float)QcToneLevelSlider.Value);
 
             foreach (var entry in _explicitChannelBoosts)
             {
